@@ -8,7 +8,10 @@ OrderedNeurons/save/
 __pycache__/
 *.py[cod]
 *$py.class
-
+data/
+OrderedNeurons/treebank_3/
+*.out
+*.pt
 # C extensions
 *.so
 

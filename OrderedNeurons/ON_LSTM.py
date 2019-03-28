@@ -81,10 +81,10 @@ class ONLSTMCell(nn.Module):
 
         gates = transformed_input + self.hh(hx)
         cingate, cforgetgate = gates[:, :self.n_chunk*2].chunk(2, 1)
-        outgate, cell, ingate, forgetgate = gates[:, self.n_chunk*2:].view(-1, self.n_chunk*4, self.chunk_size).chunk(4, 1)
+        outgate, cell, ingate, forgetgate = gates[:,self.n_chunk*2:].view(-1, self.n_chunk*4, self.chunk_size).chunk(4,1)
 
-        cingate = 1. - cumsoftmax(cingate)  # master input gate
-        cforgetgate = cumsoftmax(cforgetgate)  # master forget gate
+        cingate = 1. - cumsoftmax(cingate)
+        cforgetgate = cumsoftmax(cforgetgate)
 
         distance_cforget = 1. - cforgetgate.sum(dim=-1) / self.n_chunk
         distance_cin = cingate.sum(dim=-1) / self.n_chunk
@@ -176,4 +176,8 @@ class ONLSTMStack(nn.Module):
         return output, prev_state, raw_outputs, outputs, (torch.stack(distances_forget), torch.stack(distances_in))
 
 
-
+if __name__ == "__main__":
+    x = torch.Tensor(10, 10, 10)
+    x.data.normal_()
+    lstm = LSTMCellStack([10, 10, 10])
+    print(lstm(x, lstm.init_hidden(10))[1])

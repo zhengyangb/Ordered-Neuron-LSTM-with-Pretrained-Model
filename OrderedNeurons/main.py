@@ -8,10 +8,15 @@ import torch.optim.lr_scheduler as lr_scheduler
 
 import data
 import model
+<<<<<<< HEAD
 import pickle as pkl
 
 from utils import batchify, get_batch, repackage_hidden
 import tools
+=======
+
+from utils import batchify, get_batch, repackage_hidden
+>>>>>>> 07a6143931f52ab6632b2e65d093e40867342539
 
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='data/penn/',
@@ -131,10 +136,13 @@ test_data = batchify(corpus.test, test_batch_size, args)
 # Build the model
 ###############################################################################
 
+<<<<<<< HEAD
 
 
 
 ################################################3
+=======
+>>>>>>> 07a6143931f52ab6632b2e65d093e40867342539
 from splitcross import SplitCrossEntropyLoss
 
 criterion = None
