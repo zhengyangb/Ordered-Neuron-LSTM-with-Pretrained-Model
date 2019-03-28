@@ -127,7 +127,7 @@ test_data = batchify(corpus.test, test_batch_size, args)
 # Build the model
 ###############################################################################
 
-from OrderedNeurons.splitcross import SplitCrossEntropyLoss
+from splitcross import SplitCrossEntropyLoss
 
 criterion = None
 
