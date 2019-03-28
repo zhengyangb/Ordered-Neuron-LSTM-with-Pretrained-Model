@@ -6,10 +6,10 @@ import torch
 import torch.nn as nn
 import torch.optim.lr_scheduler as lr_scheduler
 
-from OrderedNeurons import data
-from OrderedNeurons import model
+import data
+import model
 
-from OrderedNeurons.utils import batchify, get_batch, repackage_hidden
+from utils import batchify, get_batch, repackage_hidden
 
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='data/penn/',

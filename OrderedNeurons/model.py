@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 
-from OrderedNeurons.embed_regularize import embedded_dropout
-from OrderedNeurons.locked_dropout import LockedDropout
-from OrderedNeurons.weight_drop import WeightDrop
-from OrderedNeurons.ON_LSTM import ONLSTMStack
+from embed_regularize import embedded_dropout
+from locked_dropout import LockedDropout
+from weight_drop import WeightDrop
+from ON_LSTM import ONLSTMStack
 
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""

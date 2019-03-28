@@ -48,7 +48,7 @@ class WeightDrop(torch.nn.Module):
 
 if __name__ == '__main__':
     import torch
-    from OrderedNeurons.weight_drop import WeightDrop
+    from weight_drop import WeightDrop
 
     # Input is (seq, batch, input)
     x = torch.autograd.Variable(torch.randn(2, 1, 10)).cuda()

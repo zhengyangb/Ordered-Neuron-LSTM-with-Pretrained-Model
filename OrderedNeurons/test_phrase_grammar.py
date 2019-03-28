@@ -8,12 +8,12 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-from OrderedNeurons import data
-from OrderedNeurons import data_ptb
-from OrderedNeurons.utils import batchify, get_batch, repackage_hidden, evalb
+import data
+import data_ptb
+from utils import batchify, get_batch, repackage_hidden, evalb
 
-from OrderedNeurons.parse_comparison import corpus_stats_labeled, corpus_average_depth
-from OrderedNeurons.data_ptb import word_tags
+from parse_comparison import corpus_stats_labeled, corpus_average_depth
+from data_ptb import word_tags
 
 
 criterion = nn.CrossEntropyLoss()
