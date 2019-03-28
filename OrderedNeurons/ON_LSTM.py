@@ -2,7 +2,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 import torch
 
-from OrderedNeurons.locked_dropout import LockedDropout
+from locked_dropout import LockedDropout
 
 
 class LayerNorm(nn.Module):

@@ -1,0 +1,1 @@
+from tools.load_embed import load_fasttext_embd

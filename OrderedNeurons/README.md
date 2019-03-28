@@ -30,7 +30,9 @@ and for parsing we need [Penn Treebank Parsed](https://catalog.ldc.upenn.edu/LDC
 3. Scripts and commands
 
   	+  Train Language Modeling
-  	```python main.py --batch_size 20 --dropout 0.45 --dropouth 0.3 --dropouti 0.5 --wdrop 0.45 --chunk_size 10 --seed 141 --epoch 1000 --data /path/to/your/data```
+  	```python -u main.py --cuda --batch_size 20 --dropout 0.45 --dropouth 0.3 --dropouti 0.5 --wdrop 0.45 --chunk_size 10 --seed 141 --epoch 1000 --data data/penn```
+  	
+  	    + Remove the cuda flag if to run without cuda
 
   	+ Test Unsupervised Parsing
     ```python test_phrase_grammar.py --cuda```

@@ -1,7 +1,8 @@
 # Project related
 *.data
 *.pt
-/.idea
+.idea/
+OrderedNeurons/save/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
