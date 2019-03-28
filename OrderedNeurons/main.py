@@ -6,17 +6,19 @@ import torch
 import torch.nn as nn
 import torch.optim.lr_scheduler as lr_scheduler
 
-from OrderedNeurons import data
-from OrderedNeurons import model
+import data
+import model
 
-from OrderedNeurons.utils import batchify, get_batch, repackage_hidden
+from utils import batchify, get_batch, repackage_hidden
 
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='data/penn/',
                     help='location of the data corpus')
+parser.add_argument('--emb_path', type=str, default='/scratch/xz2139/glove.6B.300d.txt',
+                    help='path of pretrained embedding')
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (LSTM, QRNN, GRU)')
-parser.add_argument('--emsize', type=int, default=400,
+parser.add_argument('--emsize', type=int, default=300,
                     help='size of word embeddings')
 parser.add_argument('--nhid', type=int, default=1150,
                     help='number of hidden units per layer')
@@ -48,7 +50,7 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--nonmono', type=int, default=5,
                     help='random seed')
-parser.add_argument('--cuda', action='store_true',
+parser.add_argument('--cuda', action='store_false',
                     help='use CUDA')
 parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                     help='report interval')
@@ -127,13 +129,56 @@ test_data = batchify(corpus.test, test_batch_size, args)
 # Build the model
 ###############################################################################
 
-from OrderedNeurons.splitcross import SplitCrossEntropyLoss
+def get_pretrain_emb(pretrained, token, notPretrained):
+    if token == '<pad>':
+        notPretrained.append(0)
+        return [0] * 300
+    if token in pretrained:
+        notPretrained.append(0)
+        return pretrained[token]
+    else:
+        notPretrained.append(1)
+        return [0] * 300
+
+
+import pickle as pkl
+
+def load_fasttext_embd(fname, corpus, words_to_load=100000, reload=False):
+    label = 'fasttext_emb'
+#     print(label)
+    if os.path.exists(label+".pkl") and (not reload):
+        data = pkl.load(open(label+".pkl", "rb"))
+        print("found existing embeddings pickles.."+fname[:-4])
+    else:
+        print("loading embeddings.."+fname[:-4])
+        fin = open(fname, 'r', encoding='utf-8', newline='\n', errors='ignore')
+        fin.readline()
+        data = {}
+        for line in fin:
+            tokens = line.rstrip().split(' ')
+            if tokens[0] in corpus.dictionary.idx2word:
+                data[tokens[0]] = list(map(float, tokens[1:]))
+
+        fin.close()
+        pkl.dump(data, open(label+".pkl", "wb"))
+    notPretrained = []
+    embeddings = [get_pretrain_emb(data, token, notPretrained) for token in corpus.dictionary.idx2word]
+        
+    print("There are {} not pretrained words out of {} total words.".format(sum(notPretrained), len(notPretrained)))
+    return embeddings, np.array(notPretrained)
+
+
+################################################3
+from splitcross import SplitCrossEntropyLoss
 
 criterion = None
 
 ntokens = len(corpus.dictionary)
-model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
+pre_emb,_=load_fasttext_embd(args.emb_path, corpus, words_to_load=100000, reload=False)
+model = model.RNNModel(args.model, ntokens, args.emsize,pre_emb, args.nhid, args.chunk_size, args.nlayers,
                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
+# model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
+#                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
 ###
 if args.resume:
     print('Resuming model ...')

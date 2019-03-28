@@ -1,21 +1,22 @@
 import torch
 import torch.nn as nn
 
-from OrderedNeurons.embed_regularize import embedded_dropout
-from OrderedNeurons.locked_dropout import LockedDropout
-from OrderedNeurons.weight_drop import WeightDrop
-from OrderedNeurons.ON_LSTM import ONLSTMStack
+from embed_regularize import embedded_dropout
+from locked_dropout import LockedDropout
+from weight_drop import WeightDrop
+from ON_LSTM import ONLSTMStack
 
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
-    def __init__(self, rnn_type, ntoken, ninp, nhid, chunk_size, nlayers, dropout=0.5, dropouth=0.5, dropouti=0.5, dropoute=0.1, wdrop=0, tie_weights=False):
+    def __init__(self, rnn_type, ntoken, ninp,pre_emb, nhid, chunk_size, nlayers, dropout=0.5, dropouth=0.5, dropouti=0.5, dropoute=0.1, wdrop=0, tie_weights=False):
         super(RNNModel, self).__init__()
         self.lockdrop = LockedDropout()
         self.idrop = nn.Dropout(dropouti)
         self.hdrop = nn.Dropout(dropouth)
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
+        self.encoder.weight = nn.Parameter(torch.FloatTensor(pre_emb))
         assert rnn_type in ['LSTM'], 'RNN type is not supported'
         self.rnn = ONLSTMStack(
             [ninp] + [nhid] * (nlayers - 1) + [ninp],
