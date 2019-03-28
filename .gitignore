@@ -1,6 +1,7 @@
 # Project related
 *.data
 *.pt
+/.idea
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
