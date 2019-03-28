@@ -14,6 +14,8 @@ from utils import batchify, get_batch, repackage_hidden
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='data/penn/',
                     help='location of the data corpus')
+parser.add_argument('--emb_path', type=str, default='/scratch/xz2139/glove.6B.300d.txt',
+                    help='path of pretrained embedding')
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (LSTM, QRNN, GRU)')
 parser.add_argument('--emsize', type=int, default=300,
@@ -172,7 +174,7 @@ from splitcross import SplitCrossEntropyLoss
 criterion = None
 
 ntokens = len(corpus.dictionary)
-pre_emb,_=load_fasttext_embd('/scratch/xz2139/glove.6B.300d.txt', corpus, words_to_load=100000, reload=False)
+pre_emb,_=load_fasttext_embd(args.emb_path, corpus, words_to_load=100000, reload=False)
 model = model.RNNModel(args.model, ntokens, args.emsize,pre_emb, args.nhid, args.chunk_size, args.nlayers,
                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
 # model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
