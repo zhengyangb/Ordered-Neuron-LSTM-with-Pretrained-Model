@@ -78,7 +78,10 @@ class Corpus(object):
         self.wvec = wvec
         self.word2idx = word2idx
         self.idx2word = idx2word
-        dict_file_name = os.path.join(path, wvec + 'dict.pkl')
+        if wvec:
+            dict_file_name = os.path.join(path, wvec + 'dict.pkl')
+        else:
+            dict_file_name = os.path.join(path, 'dict.pkl')
         if os.path.exists(dict_file_name):
             self.dictionary = pickle.load(open(dict_file_name, 'rb'))
         else:
