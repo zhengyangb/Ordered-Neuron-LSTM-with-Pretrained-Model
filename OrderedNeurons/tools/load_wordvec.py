@@ -56,5 +56,5 @@ def load_wvec(type, max_vocab=50000):
 
 def indexesFromSentence(tokens, word2index):
     indexes = [word2index[token] if token in word2index else UNK_IDX for token in tokens]
-    return torch.tensor(indexes, dtype=torch.long)
+    return indexes
 

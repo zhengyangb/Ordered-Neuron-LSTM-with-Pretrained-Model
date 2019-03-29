@@ -161,7 +161,7 @@ else:
 
 eval_batch_size = 10
 test_batch_size = 1
-train_data = batchify(corpus.train, args.batch_size, args)
+train_data = batchify(corpus.train, args.batch_size, args)  # 46479 * 20 929589
 val_data = batchify(corpus.valid, eval_batch_size, args)
 test_data = batchify(corpus.test, test_batch_size, args)
 
@@ -177,8 +177,8 @@ ntokens = len(corpus.dictionary)
 
 # pre_emb,_= tools.load_fasttext_embd(args.emb_path, corpus, words_to_load=100000, reload=False)
 if args.wvec:
-    model = model.RNNModel(args.model, ntokens, args.emsize, pre_emb, args.nhid, args.chunk_size, args.nlayers,
-                       args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
+    model = model.RNNModel(args.model, ntokens, args.emsize,  args.nhid, args.chunk_size, args.nlayers,
+                       args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, pre_emb,)
 else:
     model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)

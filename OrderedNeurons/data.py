@@ -45,11 +45,13 @@ class Corpus(object):
         # Add words to the dictionary
         if self.wvec:
             self.dictionary = Dictionary(self.wvec)
+            ids = []
             word2idx = tools.pkl_loader(os.path.join('data/wordvec', self.wvec, 'words2idx'))
             with open(path, 'r') as f:
                 for line in f:
                     words = line.split() + ['<eos>']
-                    ids = tools.indexesFromSentence(words, word2idx)
+                    ids += tools.indexesFromSentence(words, word2idx)
+            ids = torch.tensor(ids, dtype=torch.long)
 
         else:
             with open(path, 'r') as f:
