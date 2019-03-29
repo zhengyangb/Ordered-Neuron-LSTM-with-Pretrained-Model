@@ -143,7 +143,9 @@ if args.wvec:
             os.makedirs(wvec_dir)
             tools.load_wvec(args.wvec, max_vocab=args.maxvocab)
         tools.print_log(args.save, 'Producing dataset with pretrained word vectors...')
-        corpus = data.Corpus(args.data, args.wvec)
+        word2idx = tools.pkl_loader(os.path.join('data/wordvec', args.wvec, 'words2idx'))
+        idx2word = tools.pkl_loader(os.path.join('data/wordvec', args.wvec, 'idx2words'))
+        corpus = data.Corpus(args.data, args.wvec, word2idx, idx2word)
         torch.save(corpus, fn)
     pre_emb = tools.pkl_loader(os.path.join('data/wordvec', args.wvec, 'word_vecs'))
 

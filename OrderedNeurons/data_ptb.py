@@ -31,10 +31,10 @@ for id in file_ids:
 
 
 class Dictionary(object):
-    def __init__(self, wvec=None):
+    def __init__(self, wvec=None, word2idx=None, idx2word=None):
         if wvec:
-            self.word2idx = tools.pkl_loader(os.path.join('data/wordvec', wvec, 'words2idx'))
-            self.idx2word = tools.pkl_loader(os.path.join('data/wordvec', wvec, 'idx2words'))
+            self.word2idx = word2idx
+            self.idx2word = idx2word
             self.word2frq = {}
         else:
             self.word2idx = {'<unk>': 0}
@@ -74,8 +74,10 @@ class Dictionary(object):
 
 
 class Corpus(object):
-    def __init__(self, path, wvec=None):
+    def __init__(self, path, wvec=None, word2idx=None, idx2word=None):
         self.wvec = wvec
+        self.word2idx = word2idx
+        self.idx2word = idx2word
         dict_file_name = os.path.join(path, wvec + 'dict.pkl')
         if os.path.exists(dict_file_name):
             self.dictionary = pickle.load(open(dict_file_name, 'rb'))

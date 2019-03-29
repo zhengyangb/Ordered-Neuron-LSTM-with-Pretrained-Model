@@ -307,7 +307,9 @@ if __name__ == '__main__':
 
     tools.print_log(args.save, 'Loading PTB dataset...')
     if args.wvec:
-        corpus = data_ptb.Corpus(args.data, args.wvec)
+        word2idx = tools.pkl_loader(os.path.join('data/wordvec', args.wvec, 'words2idx'))
+        idx2word = tools.pkl_loader(os.path.join('data/wordvec', args.wvec, 'idx2words'))
+        corpus = data_ptb.Corpus(args.data, args.wvec, word2idx, idx2word)
     else:
         corpus = data_ptb.Corpus(args.data)
     corpus.dictionary = dictionary

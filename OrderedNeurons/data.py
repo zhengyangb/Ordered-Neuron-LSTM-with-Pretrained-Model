@@ -6,10 +6,10 @@ import tools
 
 
 class Dictionary(object):
-    def __init__(self, wvec=None):
+    def __init__(self, wvec=None, word2idx=None, idx2word=None):
         if wvec:
-            self.word2idx = tools.pkl_loader(os.path.join('data/wordvec', wvec, 'words2idx'))
-            self.idx2word = tools.pkl_loader(os.path.join('data/wordvec', wvec, 'idx2words'))
+            self.word2idx = word2idx
+            self.idx2word = idx2word
             self.counter = Counter()
             self.total = len(self.word2idx)
         else:
@@ -32,9 +32,11 @@ class Dictionary(object):
 
 
 class Corpus(object):
-    def __init__(self, path, wvec=None):
+    def __init__(self, path, wvec=None, word2idx=None, idx2word=None):
         self.dictionary = Dictionary()
         self.wvec = wvec
+        self.word2idx = word2idx
+        self.idx2word = idx2word
         self.train = self.tokenize(os.path.join(path, 'train.txt'))
         self.valid = self.tokenize(os.path.join(path, 'valid.txt'))
         self.test = self.tokenize(os.path.join(path, 'test.txt'))
@@ -44,13 +46,12 @@ class Corpus(object):
         assert os.path.exists(path)
         # Add words to the dictionary
         if self.wvec:
-            self.dictionary = Dictionary(self.wvec)
+            self.dictionary = Dictionary(self.wvec, self.word2idx, self.idx2word)
             ids = []
-            word2idx = tools.pkl_loader(os.path.join('data/wordvec', self.wvec, 'words2idx'))
             with open(path, 'r') as f:
                 for line in f:
                     words = line.split() + ['<eos>']
-                    ids += tools.indexesFromSentence(words, word2idx)
+                    ids += tools.indexesFromSentence(words, self.word2idx)
             ids = torch.tensor(ids, dtype=torch.long)
 
         else:
