@@ -178,7 +178,7 @@ ntokens = len(corpus.dictionary)
 # pre_emb,_= tools.load_fasttext_embd(args.emb_path, corpus, words_to_load=100000, reload=False)
 if args.wvec:
     model = model.RNNModel(args.model, ntokens, args.emsize,  args.nhid, args.chunk_size, args.nlayers,
-                       args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, pre_emb,)
+                       args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, pre_emb=pre_emb,)
 else:
     model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
