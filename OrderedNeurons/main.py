@@ -144,7 +144,7 @@ if args.wvec:
             tools.load_wvec(args.wvec, max_vocab=args.maxvocab)
         tools.print_log(args.save, 'Producing dataset with pretrained word vectors...')
         corpus = data.Corpus(args.data, args.wvec)
-        torch.save(corpus, fn + 'pt')
+        torch.save(corpus, fn)
     pre_emb = tools.pkl_loader(os.path.join('data/wordvec', args.wvec, 'word_vecs'))
 
 else:
