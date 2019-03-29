@@ -142,7 +142,7 @@ if args.wvec:
         if not os.path.exists(wvec_dir):
             os.makedirs(wvec_dir)
             tools.load_wvec(args.wvec, max_vocab=args.maxvocab)
-        tools.print_log('Producing dataset with pretrained word vectors...')
+        tools.print_log(args.save, 'Producing dataset with pretrained word vectors...')
         corpus = data.Corpus(args.data, args.wvec)
         torch.save(corpus, fn + 'pt')
     pre_emb = tools.pkl_loader(os.path.join('data/wordvec', args.wvec, 'word_vecs'))
