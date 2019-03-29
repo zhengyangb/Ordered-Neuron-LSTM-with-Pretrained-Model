@@ -225,9 +225,7 @@ def test(model, corpus, cuda, prt=False):
     if prt:
         tools.print_log(args.save, '-' * 80)
         np.set_printoptions(precision=4)
-        tools.print_log(args.save, 'Mean Prec:', prec_list.mean(axis=0),
-              ', Mean Reca:', reca_list.mean(axis=0),
-              ', Mean F1:', f1_list.mean(axis=0))
+        tools.print_log(args.save, 'Mean Prec:{}, Mean Reca:{}, Mean F1:{}'.format(prec_list.mean(axis=0), reca_list.mean(axis=0), f1_list.mean(axis=0)))
         tools.print_log(args.save, 'Number of sentence: %i' % nsens)
 
         correct, total = corpus_stats_labeled(corpus_sys, corpus_ref)
@@ -273,7 +271,7 @@ if __name__ == '__main__':
     args.bptt = 70
     model_dir = args.output + args.check_dir
     args.checkpoint = os.path.join(model_dir, args.check_dir + '.pt')
-    args.save = model_dir + 'test'
+    args.save = model_dir + '/test'
 
     # Set the random seed manually for reproducibility.
     torch.manual_seed(args.seed)
