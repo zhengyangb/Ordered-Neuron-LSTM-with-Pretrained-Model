@@ -1,5 +1,6 @@
 import argparse
 import re
+import os
 
 import matplotlib.pyplot as plt
 import nltk
@@ -14,7 +15,7 @@ from utils import batchify, get_batch, repackage_hidden, evalb
 
 from parse_comparison import corpus_stats_labeled, corpus_average_depth
 from data_ptb import word_tags
-
+import tools
 
 criterion = nn.CrossEntropyLoss()
 
@@ -157,8 +158,8 @@ def test(model, corpus, cuda, prt=False):
         nsens += 1
         if prt and nsens % 100 == 0:
             for i in range(len(sen)):
-                print('%15s\t%s\t%s' % (sen[i], str(distance[:, i]), str(distance_in[:, i])))
-            print('Standard output:', sen_tree)
+                tools.print_log(args.save, '%15s\t%s\t%s' % (sen[i], str(distance[:, i]), str(distance_in[:, i])))
+            tools.print_log(args.save, 'Standard output:{}'.format(sen_tree))
 
         sen_cut = sen[1:-1]
         # gates = distance.mean(axis=0)
@@ -193,11 +194,11 @@ def test(model, corpus, cuda, prt=False):
             f1_list.append(f1)
 
             if prt and nsens % 100 == 0:
-                print('Model output:', parse_tree)
-                print('Prec: %f, Reca: %f, F1: %f' % (prec, reca, f1))
+                tools.print_log(args.save, 'Model output:{}'.format(parse_tree))
+                tools.print_log(args.save, 'Prec: %f, Reca: %f, F1: %f' % (prec, reca, f1))
 
         if prt and nsens % 100 == 0:
-            print('-' * 80)
+            tools.print_log(args.save + '.log', '-' * 80)
 
             f, axarr = plt.subplots(3, sharex=True, figsize=(distance.shape[1] // 2, 6))
             axarr[0].bar(np.arange(distance.shape[1])-0.2, distance[0], width=0.4)
@@ -213,7 +214,7 @@ def test(model, corpus, cuda, prt=False):
             axarr[2].set_ylim([0., 1.])
             axarr[2].set_ylabel('3rd layer')
             plt.sca(axarr[2])
-            plt.xlim(xmin=-0.5, xmax=distance.shape[1] - 0.5)
+            plt.xlim(left=-0.5, right=distance.shape[1] - 0.5)
             plt.xticks(np.arange(distance.shape[1]), sen, fontsize=10, rotation=45)
 
             plt.savefig('figure/%d.png' % (nsens))
@@ -222,21 +223,21 @@ def test(model, corpus, cuda, prt=False):
     prec_list, reca_list, f1_list \
         = np.array(prec_list).reshape((-1,1)), np.array(reca_list).reshape((-1,1)), np.array(f1_list).reshape((-1,1))
     if prt:
-        print('-' * 80)
+        tools.print_log(args.save, '-' * 80)
         np.set_printoptions(precision=4)
-        print('Mean Prec:', prec_list.mean(axis=0),
+        tools.print_log(args.save, 'Mean Prec:', prec_list.mean(axis=0),
               ', Mean Reca:', reca_list.mean(axis=0),
               ', Mean F1:', f1_list.mean(axis=0))
-        print('Number of sentence: %i' % nsens)
+        tools.print_log(args.save, 'Number of sentence: %i' % nsens)
 
         correct, total = corpus_stats_labeled(corpus_sys, corpus_ref)
-        print(correct)
-        print(total)
-        print('ADJP:', correct['ADJP'], total['ADJP'])
-        print('NP:', correct['NP'], total['NP'])
-        print('PP:', correct['PP'], total['PP'])
-        print('INTJ:', correct['INTJ'], total['INTJ'])
-        print(corpus_average_depth(corpus_sys))
+        tools.print_log(args.save, correct)
+        tools.print_log(args.save, total)
+        tools.print_log(args.save, 'ADJP:{}, {}'.format(correct['ADJP'], total['ADJP']))
+        tools.print_log(args.save, 'NP::{}, {}'.format(correct['NP'], total['NP']))
+        tools.print_log(args.save, 'PP::{}, {}'.format(correct['PP'], total['PP']))
+        tools.print_log(args.save, 'INTJ::{}, {}'.format(correct['INTJ'], total['INTJ']))
+        tools.print_log(args.save, corpus_average_depth(corpus_sys))
 
         evalb(pred_tree_list, targ_tree_list)
 
@@ -253,16 +254,26 @@ if __name__ == '__main__':
     # Model parameters.
     parser.add_argument('--data', type=str, default='data/ptb',
                         help='location of the data corpus')
-    parser.add_argument('--checkpoint', type=str, default='PTB.pt',
+    parser.add_argument('--data_train', type=str, default='data/penn',
+                        help='location of the data corpus')
+    parser.add_argument('--check_dir', type=str, default='PTB',
                         help='model checkpoint to use')
+    parser.add_argument('--output', metavar='SAVE DIR',
+                        default='./res/',
+                        help='path to save result')
     parser.add_argument('--seed', type=int, default=1111,
                         help='random seed')
     parser.add_argument('--cuda', action='store_true',
                         help='use CUDA')
     parser.add_argument('--wsj10', action='store_true',
                         help='use WSJ10')
+    parser.add_argument('--wvec', type=str, default='',
+                        help='load pretrained word vector')
     args = parser.parse_args()
     args.bptt = 70
+    model_dir = args.output + args.check_dir
+    args.checkpoint = os.path.join(model_dir, args.check_dir + '.pt')
+    args.save = model_dir + 'test'
 
     # Set the random seed manually for reproducibility.
     torch.manual_seed(args.seed)
@@ -279,8 +290,10 @@ if __name__ == '__main__':
     # Load data
     import hashlib
 
-    fn = 'corpus.{}.data'.format(hashlib.md5('data/penn/'.encode()).hexdigest())
-    print('Loading cached dataset...')
+    # fn = 'corpus.{}.data'.format(hashlib.md5('data/penn/'.encode()).hexdigest())
+    fn = 'corpus.{}.data'.format(hashlib.md5((args.data_train + args.wvec).encode()).hexdigest())
+    # fn = 'corpus.{}.data'.format(hashlib.md5((args.data + args.wvec).encode()).hexdigest())
+    tools.print_log(args.save, 'Loading cached dataset...')
     corpus = torch.load(fn)
     dictionary = corpus.dictionary
 
@@ -292,8 +305,11 @@ if __name__ == '__main__':
     #     test_loss, math.exp(test_loss), test_loss / math.log(2)))
     # print('=' * 89)
 
-    print('Loading PTB dataset...')
-    corpus = data_ptb.Corpus(args.data)
+    tools.print_log(args.save, 'Loading PTB dataset...')
+    if args.wvec:
+        corpus = data_ptb.Corpus(args.data, args.wvec)
+    else:
+        corpus = data_ptb.Corpus(args.data)
     corpus.dictionary = dictionary
 
     test(model, corpus, args.cuda, prt=True)

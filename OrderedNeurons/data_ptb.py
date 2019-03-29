@@ -6,6 +6,8 @@ import torch
 import nltk
 from nltk.corpus import ptb
 
+import tools
+
 word_tags = ['CC', 'CD', 'DT', 'EX', 'FW', 'IN', 'JJ', 'JJR', 'JJS', 'LS', 'MD', 'NN', 'NNS', 'NNP', 'NNPS', 'PDT',
              'POS', 'PRP', 'PRP$', 'RB', 'RBR', 'RBS', 'RP', 'SYM', 'TO', 'UH', 'VB', 'VBD', 'VBG', 'VBN', 'VBP', 'VBZ',
              'WDT', 'WP', 'WP$', 'WRB']
@@ -29,10 +31,15 @@ for id in file_ids:
 
 
 class Dictionary(object):
-    def __init__(self):
-        self.word2idx = {'<unk>': 0}
-        self.idx2word = ['<unk>']
-        self.word2frq = {}
+    def __init__(self, wvec=None):
+        if wvec:
+            self.word2idx = tools.pkl_loader(os.path.join('data/wordvec', wvec, 'words2idx'))
+            self.idx2word = tools.pkl_loader(os.path.join('data/wordvec', wvec, 'idx2words'))
+            self.word2frq = {}
+        else:
+            self.word2idx = {'<unk>': 0}
+            self.idx2word = ['<unk>']
+            self.word2frq = {}
 
     def add_word(self, word):
         if word not in self.word2idx:
@@ -67,15 +74,20 @@ class Dictionary(object):
 
 
 class Corpus(object):
-    def __init__(self, path):
-        dict_file_name = os.path.join(path, 'dict.pkl')
+    def __init__(self, path, wvec=None):
+        self.wvec = wvec
+        dict_file_name = os.path.join(path, wvec + 'dict.pkl')
         if os.path.exists(dict_file_name):
             self.dictionary = pickle.load(open(dict_file_name, 'rb'))
         else:
-            self.dictionary = Dictionary()
-            self.add_words(train_file_ids)
-            self.dictionary.rebuild_by_freq()
-            pickle.dump(self.dictionary, open(dict_file_name, 'wb'))
+            if self.wvec:
+                self.dictionary = Dictionary(self.wvec)
+                pickle.dump(self.dictionary, open(dict_file_name, 'wb'))
+            else:
+                self.dictionary = Dictionary()
+                self.add_words(train_file_ids)
+                self.dictionary.rebuild_by_freq()
+                pickle.dump(self.dictionary, open(dict_file_name, 'wb'))
 
         self.train, self.train_sens, self.train_trees, self.train_nltktrees = self.tokenize(train_file_ids)
         self.valid, self.valid_sens, self.valid_trees, self.valid_nltktress = self.tokenize(valid_file_ids)
@@ -131,10 +143,15 @@ class Corpus(object):
                 words = self.filter_words(sen_tree)
                 words = ['<eos>'] + words + ['<eos>']
                 sens.append(words)
-                idx = []
-                for word in words:
-                    idx.append(self.dictionary[word])
-                sens_idx.append(torch.LongTensor(idx))
+                if self.wvec:
+                    word2idx = tools.pkl_loader(os.path.join('data/wordvec', self.wvec, 'words2idx'))
+                    idx = tools.indexesFromSentence(words, word2idx)
+                    sens_idx.append(idx)
+                else:
+                    idx = []
+                    for word in words:
+                        idx.append(self.dictionary[word])
+                    sens_idx.append(torch.LongTensor(idx))
                 trees.append(tree2list(sen_tree))
                 nltk_trees.append(sen_tree)
 

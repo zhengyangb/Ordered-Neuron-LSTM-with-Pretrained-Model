@@ -2,6 +2,8 @@ import argparse
 import time
 import math
 import numpy as np
+import os
+import hashlib
 import torch
 import torch.nn as nn
 import torch.optim.lr_scheduler as lr_scheduler
@@ -9,15 +11,25 @@ import torch.optim.lr_scheduler as lr_scheduler
 import data
 import model
 import pickle as pkl
-
+from splitcross import SplitCrossEntropyLoss
 from utils import batchify, get_batch, repackage_hidden
 import tools
 
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
-parser.add_argument('--data', type=str, default='data/penn/',
+
+# data
+parser.add_argument('--data', type=str, default='data/penn',
                     help='location of the data corpus')
-parser.add_argument('--emb_path', type=str, default='./save/glove.840B.300d.txt',
-                    help='path of pretrained embedding')
+parser.add_argument('--wvec', type=str, default='',
+                    help='load pretrained word vector')
+parser.add_argument('--maxvocab', type=int, default=50000,
+                    help='maximum word vector to load')
+parser.add_argument('-n', '--name', default=tools.date_hash(),
+                    help='checkpoint file name')
+parser.add_argument('--output', metavar='SAVE DIR',
+                    default='./res/',
+                    help='path to save result')
+# model
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (LSTM, QRNN, GRU)')
 parser.add_argument('--emsize', type=int, default=300,
@@ -52,13 +64,14 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--nonmono', type=int, default=5,
                     help='random seed')
-parser.add_argument('--cuda', default = False, action='store_true',
+
+parser.add_argument('--cuda', default=False, action='store_true',
                     help='use CUDA')
+
 parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                     help='report interval')
-randomhash = ''.join(str(time.time()).split('.'))
-parser.add_argument('--save', type=str, default=randomhash + '.pt',
-                    help='path to save the final model')
+# parser.add_argument('--save', type=str, default=randomhash + '.pt',
+#                     help='path to save the final model')
 parser.add_argument('--alpha', type=float, default=2,
                     help='alpha L2 regularization on RNN activation (alpha = 0 means no regularization)')
 parser.add_argument('--beta', type=float, default=1,
@@ -78,19 +91,28 @@ parser.add_argument('--philly', action='store_true',
 args = parser.parse_args()
 args.tied = True
 
+if not os.path.exists(args.output):
+    os.makedirs(args.output)
+
+save_dir = os.path.join(args.output, args.name)
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
+args.save_dir = save_dir
+args.save = os.path.join(save_dir, args.name)
+
 # Set the random seed manually for reproducibility.
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 if torch.cuda.is_available():
     if not args.cuda:
-        print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+        tools.print_log(args.save, "WARNING: You have a CUDA device, so you should probably run with --cuda")
     else:
         torch.cuda.manual_seed(args.seed)
-
 
 ###############################################################################
 # Load data
 ###############################################################################
+
 
 def model_save(fn):
     if args.philly:
@@ -107,19 +129,35 @@ def model_load(fn):
         model, criterion, optimizer = torch.load(f)
 
 
-import os
-import hashlib
+if args.wvec:
+    word_vec_dir = 'data/wordvec/'
+    if not os.path.exists(word_vec_dir):
+        os.makedirs(word_vec_dir)
+    fn = 'corpus.{}.data'.format(hashlib.md5((args.data+args.wvec).encode()).hexdigest())  # 1ce....
+    if os.path.exists(fn):
+        tools.print_log(args.save, 'Loading cached dataset...')
+        corpus = torch.load(fn)
+    elif args.wvec == 'glove':
+        wvec_dir = word_vec_dir + args.wvec
+        if not os.path.exists(wvec_dir):
+            os.makedirs(wvec_dir)
+            tools.load_wvec(args.wvec, max_vocab=args.maxvocab)
+        tools.print_log('Producing dataset with pretrained word vectors...')
+        corpus = data.Corpus(args.data, args.wvec)
+        torch.save(corpus, fn + 'pt')
+    pre_emb = tools.pkl_loader(os.path.join('data/wordvec', args.wvec, 'word_vecs'))
 
-fn = 'corpus.{}.data'.format(hashlib.md5(args.data.encode()).hexdigest())
-if args.philly:
-    fn = os.path.join(os.environ['PT_OUTPUT_DIR'], fn)
-if os.path.exists(fn):
-    print('Loading cached dataset...')
-    corpus = torch.load(fn)
 else:
-    print('Producing dataset...')
-    corpus = data.Corpus(args.data)
-    torch.save(corpus, fn)
+    fn = 'corpus.{}.data'.format(hashlib.md5(args.data.encode()).hexdigest())
+    if args.philly:
+        fn = os.path.join(os.environ['PT_OUTPUT_DIR'], fn)
+    if os.path.exists(fn):
+        tools.print_log(args.save, 'Loading cached dataset...')
+        corpus = torch.load(fn)
+    else:
+        tools.print_log(args.save, 'Producing dataset...')
+        corpus = data.Corpus(args.data)
+        torch.save(corpus, fn)
 
 eval_batch_size = 10
 test_batch_size = 1
@@ -131,23 +169,22 @@ test_data = batchify(corpus.test, test_batch_size, args)
 # Build the model
 ###############################################################################
 
-
-
-
 ################################################3
-from splitcross import SplitCrossEntropyLoss
 
 criterion = None
 
 ntokens = len(corpus.dictionary)
-pre_emb,_= tools.load_fasttext_embd(args.emb_path, corpus, words_to_load=100000, reload=False)
-model = model.RNNModel(args.model, ntokens, args.emsize,pre_emb, args.nhid, args.chunk_size, args.nlayers,
+
+# pre_emb,_= tools.load_fasttext_embd(args.emb_path, corpus, words_to_load=100000, reload=False)
+if args.wvec:
+    model = model.RNNModel(args.model, ntokens, args.emsize, pre_emb, args.nhid, args.chunk_size, args.nlayers,
                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
-# model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
-#                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
+else:
+    model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
+                       args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
 ###
 if args.resume:
-    print('Resuming model ...')
+    tools.print_log(args.save, 'Resuming model ...')
     model_load(args.resume)
     optimizer.param_groups[0]['lr'] = args.lr
     model.dropouti, model.dropouth, model.dropout, args.dropoute = args.dropouti, args.dropouth, args.dropout, args.dropoute
@@ -165,7 +202,7 @@ if not criterion:
     elif ntokens > 75000:
         # WikiText-103
         splits = [2800, 20000, 76000]
-    print('Using', splits)
+    tools.print_log(args.save, splits)
     criterion = SplitCrossEntropyLoss(args.emsize, splits=splits, verbose=False)
 ###
 if args.cuda:
@@ -174,8 +211,8 @@ if args.cuda:
 ###
 params = list(model.parameters()) + list(criterion.parameters())
 total_params = sum(x.size()[0] * x.size()[1] if len(x.size()) > 1 else x.size()[0] for x in params if x.size())
-print('Args:', args)
-print('Model total parameters:', total_params)
+tools.print_log(args.save, args)
+tools.print_log(args.save, 'Model total parameters:{}'.format(total_params))
 
 
 ###############################################################################
@@ -250,7 +287,7 @@ def train():
         if batch % args.log_interval == 0 and batch > 0:
             cur_loss = total_loss.item() / args.log_interval
             elapsed = time.time() - start_time
-            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:05.5f} | ms/batch {:5.2f} | '
+            tools.print_log(args.save, '| epoch {:3d} | {:5d}/{:5d} batches | lr {:05.5f} | ms/batch {:5.2f} | '
                   'loss {:5.2f} | ppl {:8.2f} | bpc {:8.3f}'.format(
                 epoch, batch, len(train_data) // args.bptt, optimizer.param_groups[0]['lr'],
                               elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss), cur_loss / math.log(2)))
@@ -285,43 +322,43 @@ try:
                 prm.data = optimizer.state[prm]['ax'].clone()
 
             val_loss2 = evaluate(val_data, eval_batch_size)
-            print('-' * 89)
-            print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
+            tools.print_log(args.save, '-' * 89)
+            tools.print_log(args.save, '| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                   'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
                 epoch, (time.time() - epoch_start_time), val_loss2, math.exp(val_loss2), val_loss2 / math.log(2)))
-            print('-' * 89)
+            tools.print_log(args.save, '-' * 89)
 
             if val_loss2 < stored_loss:
-                model_save(args.save)
-                print('Saving Averaged!')
+                model_save(args.save + '.pt')
+                tools.print_log(args.save, 'Saving Averaged!')
                 stored_loss = val_loss2
 
             for prm in model.parameters():
                 prm.data = tmp[prm].clone()
 
             if epoch == args.finetuning:
-                print('Switching to finetuning')
+                tools.print_log(args.save, 'Switching to finetuning')
                 optimizer = torch.optim.ASGD(model.parameters(), lr=args.lr, t0=0, lambd=0., weight_decay=args.wdecay)
                 best_val_loss = []
 
             if epoch > args.finetuning and len(best_val_loss) > args.nonmono and val_loss2 > min(
                     best_val_loss[:-args.nonmono]):
-                print('Done!')
+                tools.print_log(args.save, 'Done!')
                 import sys
 
                 sys.exit(1)
 
         else:
             val_loss = evaluate(val_data, eval_batch_size)
-            print('-' * 89)
-            print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
+            tools.print_log(args.save , '-' * 89)
+            tools.print_log(args.save, '| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                   'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
                 epoch, (time.time() - epoch_start_time), val_loss, math.exp(val_loss), val_loss / math.log(2)))
-            print('-' * 89)
+            tools.print_log(args.save, '-' * 89)
 
             if val_loss < stored_loss:
-                model_save(args.save)
-                print('Saving model (new best validation)')
+                model_save(args.save + '.pt')
+                tools.print_log(args.save, 'Saving model (new best validation)')
                 stored_loss = val_loss
 
             if args.optimizer == 'adam':
@@ -329,29 +366,29 @@ try:
 
             if args.optimizer == 'sgd' and 't0' not in optimizer.param_groups[0] and (
                     len(best_val_loss) > args.nonmono and val_loss > min(best_val_loss[:-args.nonmono])):
-                print('Switching to ASGD')
+                tools.print_log(args.save, 'Switching to ASGD')
                 optimizer = torch.optim.ASGD(model.parameters(), lr=args.lr, t0=0, lambd=0., weight_decay=args.wdecay)
 
             if epoch in args.when:
-                print('Saving model before learning rate decreased')
-                model_save('{}.e{}'.format(args.save, epoch))
-                print('Dividing learning rate by 10')
+                tools.print_log(args.save, 'Saving model before learning rate decreased')
+                model_save('{}.e{}'.format(args.save+'.pt', epoch))
+                tools.print_log(args.save, 'Dividing learning rate by 10')
                 optimizer.param_groups[0]['lr'] /= 10.
 
             best_val_loss.append(val_loss)
 
-        print("PROGRESS: {}%".format((epoch / args.epochs) * 100))
+        tools.print_log(args.save, "PROGRESS: {}%".format((epoch / args.epochs) * 100))
 
 except KeyboardInterrupt:
-    print('-' * 89)
-    print('Exiting from training early')
+    tools.print_log(args.save, '-' * 89)
+    tools.print_log(args.save, 'Exiting from training early')
 
 # Load the best saved model.
-model_load(args.save)
+model_load(args.save+'.pt')
 
 # Run on test data.
 test_loss = evaluate(test_data, test_batch_size)
-print('=' * 89)
-print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
+tools.print_log(args.save, '=' * 89)
+tools.print_log(args.save, '| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
     test_loss, math.exp(test_loss), test_loss / math.log(2)))
-print('=' * 89)
+tools.print_log(args.save, '=' * 89)
