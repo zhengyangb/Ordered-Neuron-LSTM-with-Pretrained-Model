@@ -2,8 +2,9 @@ import argparse
 import re
 import os
 
-import matplotlib.pyplot as plt
+import matplotlib
 matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import nltk
 import numpy as np
 import torch
