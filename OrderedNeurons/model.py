@@ -17,7 +17,7 @@ class RNNModel(nn.Module):
         self.hdrop = nn.Dropout(dropouth)
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
-        if len(pre_emb) > 0:
+        if pre_emb is not None:
             self.encoder.weight = nn.Parameter(torch.FloatTensor(pre_emb))
             self.encoder.requires_grad = False
         assert rnn_type in ['LSTM'], 'RNN type is not supported'
