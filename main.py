@@ -134,6 +134,7 @@ if args.wvec:
     if not os.path.exists(word_vec_dir):
         os.makedirs(word_vec_dir)
     fn = 'corpus.{}.data'.format(hashlib.md5((args.data+args.wvec).encode()).hexdigest())  # 1ce....
+    # Load preprocessed vocab dict
     if os.path.exists(fn):
         tools.print_log(args.save, 'Loading cached dataset...')
         corpus = torch.load(fn)

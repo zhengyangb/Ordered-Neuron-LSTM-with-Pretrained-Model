@@ -17,9 +17,7 @@ class RNNModel(nn.Module):
         self.hdrop = nn.Dropout(dropouth)
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
-        if pre_emb is not None:
-            self.encoder.weight = nn.Parameter(torch.FloatTensor(pre_emb))
-            self.encoder.requires_grad = False
+
         assert rnn_type in ['LSTM'], 'RNN type is not supported'
         self.rnn = ONLSTMStack(
             [ninp] + [nhid] * (nlayers - 1) + [ninp],
@@ -40,7 +38,7 @@ class RNNModel(nn.Module):
             #    raise ValueError('When using the tied flag, nhid must be equal to emsize')
             self.decoder.weight = self.encoder.weight
 
-        self.init_weights()
+        self.init_weights(pre_emb)
 
         self.rnn_type = rnn_type
         self.ninp = ninp
@@ -55,9 +53,12 @@ class RNNModel(nn.Module):
     def reset(self):
         if self.rnn_type == 'QRNN': [r.reset() for r in self.rnns]
 
-    def init_weights(self):
+    def init_weights(self, pre_emb):
         initrange = 0.1
         self.encoder.weight.data.uniform_(-initrange, initrange)
+        if pre_emb is not None:
+            self.encoder.weight[:pre_emb.size(0), :pre_emb.size(1)] = torch.FloatTensor(pre_emb)
+
         self.decoder.bias.data.fill_(0)
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
