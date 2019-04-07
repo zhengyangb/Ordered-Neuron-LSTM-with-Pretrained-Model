@@ -39,7 +39,7 @@ import torch
 from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
                               TensorDataset)
 
-from pytorch_pretrained_bert import OpenAIGPTDoubleHeadsModel, OpenAIGPTTokenizer, OpenAIAdam, cached_path
+from pytorch_pretrained_bert import OpenAIGPTLMHeadModel, OpenAIGPTTokenizer, OpenAIAdam, cached_path
 
 ROCSTORIES_URL = "https://s3.amazonaws.com/datasets.huggingface.co/ROCStories.tar.gz"
 
@@ -100,6 +100,7 @@ def main():
     parser.add_argument('--train_dataset', type=str, default='')
     parser.add_argument('--eval_dataset', type=str, default='')
     parser.add_argument('--seed', type=int, default=42)
+
     parser.add_argument('--num_train_epochs', type=int, default=3)
     parser.add_argument('--train_batch_size', type=int, default=8)
     parser.add_argument('--eval_batch_size', type=int, default=16)
@@ -144,7 +145,7 @@ def main():
     special_tokens = ['_start_', '_delimiter_', '_classify_']
     tokenizer = OpenAIGPTTokenizer.from_pretrained(args.model_name, special_tokens=special_tokens)
     special_tokens_ids = list(tokenizer.convert_tokens_to_ids(token) for token in special_tokens)
-    model = OpenAIGPTDoubleHeadsModel.from_pretrained(args.model_name, num_special_tokens=len(special_tokens))
+    model = OpenAIGPTLMHeadModel.from_pretrained(args.model_name, num_special_tokens=len(special_tokens))
     model.to(device)
 
     # Load and encode the datasets

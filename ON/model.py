@@ -57,7 +57,7 @@ class RNNModel(nn.Module):
         initrange = 0.1
         self.encoder.weight.data.uniform_(-initrange, initrange)
         if pre_emb is not None:
-            self.encoder.weight[:pre_emb.size(0), :pre_emb.size(1)] = torch.FloatTensor(pre_emb)
+            self.encoder.weight.data[:pre_emb.size(0), :pre_emb.size(1)] = torch.FloatTensor(pre_emb)
 
         self.decoder.bias.data.fill_(0)
         self.decoder.weight.data.uniform_(-initrange, initrange)

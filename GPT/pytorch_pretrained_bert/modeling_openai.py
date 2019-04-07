@@ -820,3 +820,87 @@ class OpenAIGPTDoubleHeadsModel(OpenAIGPTPreTrainedModel):
         if losses:
             return losses
         return lm_logits, mc_logits
+
+class OpenAIGPTONLSTMLMHeadModel(nn.Module):
+    """OpenAI GPT model with a Language Modeling head ("Improving Language Understanding by Generative Pre-Training").
+
+    OpenAI GPT use a single embedding matrix to store the word and special embeddings.
+    Special tokens embeddings are additional tokens that are not pre-trained: [SEP], [CLS]...
+    Special tokens need to be trained during the fine-tuning if you use them.
+    The number of special embeddings can be controled using the `set_num_special_tokens(num_special_tokens)` function.
+
+    The embeddings are ordered as follow in the token embeddings matrice:
+        [0,                                                         ----------------------
+         ...                                                        -> word embeddings
+         config.vocab_size - 1,                                     ______________________
+         config.vocab_size,
+         ...                                                        -> special embeddings
+         config.vocab_size + config.n_special - 1]                  ______________________
+
+    where total_tokens_embeddings can be obtained as config.total_tokens_embeddings and is:
+        total_tokens_embeddings = config.vocab_size + config.n_special
+    You should use the associate indices to index the embeddings.
+
+    Params:
+        config: a OpenAIGPTConfig class instance with the configuration to build a new model
+
+    Inputs:
+        `input_ids`: a torch.LongTensor of shape [batch_size, sequence_length] (or more generally [d_1, ..., d_n, sequence_length]
+            were d_1 ... d_n are arbitrary dimensions) with the word BPE token indices selected in the range [0, total_tokens_embeddings[
+        `position_ids`: an optional torch.LongTensor with the same shape as input_ids
+            with the position indices (selected in the range [0, config.n_positions - 1[.
+        `token_type_ids`: an optional torch.LongTensor with the same shape as input_ids
+            You can use it to add a third type of embedding to each input token in the sequence
+            (the previous two being the word and position embeddings).
+            The input, position and token_type embeddings are summed inside the Transformer before the first
+            self-attention block.
+        `lm_labels`: optional language modeling labels: torch.LongTensor of shape [batch_size, sequence_length]
+            with indices selected in [-1, 0, ..., vocab_size]. All labels set to -1 are ignored (masked), the loss
+            is only computed for the labels set in [0, ..., vocab_size]
+
+    Outputs:
+        if `lm_labels` is not `None`:
+            Outputs the language modeling loss.
+        else:
+            `lm_logits`: the language modeling logits as a torch.FloatTensor of size [batch_size, sequence_length, total_tokens_embeddings]
+                (or more generally [d_1, ..., d_n, total_tokens_embeddings] were d_1 ... d_n are the dimension of input_ids)
+
+    Example usage:
+    ```python
+    # Already been converted into BPE token ids
+    input_ids = torch.LongTensor([[31, 51, 99], [15, 5, 0]])
+
+    config = modeling_openai.OpenAIGPTConfig()
+
+    model = modeling_openai.OpenAIGPTLMHeadModel(config)
+    lm_logits = model(input_ids)
+    ```
+    """
+
+    def __init__(self, config):
+        super(OpenAIGPTLMHeadModel, self).__init__(config)
+        self.transformer = OpenAIGPTModel(config)
+        self.lm_head = OpenAIGPTLMHead(self.transformer.tokens_embed.weight, config)
+        self.apply(self.init_weights)
+
+    def set_num_special_tokens(self, num_special_tokens):
+        """ Update input and output embeddings with new embedding matrice
+            Make sure we are sharing the embeddings
+        """
+        self.transformer.set_num_special_tokens(num_special_tokens)
+        self.lm_head.set_embeddings_weights(self.transformer.tokens_embed.weight)
+
+    def forward(self, input_ids, position_ids=None, token_type_ids=None, lm_labels=None):
+        hidden_states = self.transformer(input_ids, position_ids, token_type_ids)
+        lm_logits = self.lm_head(hidden_states)
+        if lm_labels is not None:
+            # Shift so that tokens < n predict n
+            shift_logits = lm_logits[:, :-1].contiguous()
+            shift_labels = lm_labels[:, 1:].contiguous()
+
+            # Flatten the tokens
+            loss_fct = CrossEntropyLoss(ignore_index=-1)
+            loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)),
+                            shift_labels.view(-1))
+            return loss
+        return lm_logits

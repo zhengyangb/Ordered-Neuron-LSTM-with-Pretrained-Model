@@ -1,5 +1,5 @@
 Please edit or run the file `GPT/gpt.py`
-
+- The default CUDA=False, please use `--cuda` flag if you want to run it on Prince
 
 
 ---
