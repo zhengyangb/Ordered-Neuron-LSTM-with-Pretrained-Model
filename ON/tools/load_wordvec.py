@@ -9,14 +9,12 @@ UNK_IDX = 2
 
 
 def pkl_dumper(obj, fname):
-    with open(fname+'.p', 'wb') as f:
-        pkl.dump(obj, f, protocol=None)
+    pkl.dump(obj, open(fname+'.p', 'wb'), protocol=pkl.HIGHEST_PROTOCOL)
+    return
 
 
 def pkl_loader(fname):
-    with open(fname+'.p', 'rb') as f:
-        obj = pkl.load(f)
-    return obj
+    return pkl.load(open(fname+'.p', 'rb'))
 
 
 def load_wvec(type, max_vocab=50000):

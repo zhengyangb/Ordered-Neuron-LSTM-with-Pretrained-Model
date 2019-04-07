@@ -32,7 +32,7 @@ parser.add_argument('--output', metavar='SAVE DIR',
 # model
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (LSTM, QRNN, GRU)')
-parser.add_argument('--emsize', type=int, default=300,
+parser.add_argument('--emsize', type=int, default=400,
                     help='size of word embeddings')
 parser.add_argument('--nhid', type=int, default=1150,
                     help='number of hidden units per layer')
@@ -134,6 +134,7 @@ if args.wvec:
     if not os.path.exists(word_vec_dir):
         os.makedirs(word_vec_dir)
     fn = 'corpus.{}.data'.format(hashlib.md5((args.data+args.wvec).encode()).hexdigest())  # 1ce....
+    # Load preprocessed vocab dict
     if os.path.exists(fn):
         tools.print_log(args.save, 'Loading cached dataset...')
         corpus = torch.load(fn)
