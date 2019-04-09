@@ -7,13 +7,15 @@ import hashlib
 import torch
 import torch.nn as nn
 import torch.optim.lr_scheduler as lr_scheduler
+import pickle
 
 import data
-import model
+import GPT_model as model
 import pickle as pkl
 from splitcross import SplitCrossEntropyLoss
-from utils import batchify, get_batch, repackage_hidden
+from utils import batchify, get_batch, get_batch_gpt, repackage_hidden
 import tools
+from pytorch_pretrained_bert import OpenAIGPTTokenizer, OpenAIGPTModel, OpenAIGPTLMHeadModel
 
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
 
@@ -22,6 +24,8 @@ parser.add_argument('--data', type=str, default='data/penn',
                     help='location of the data corpus')
 parser.add_argument('--debug', default=False, action='store_true',
                     help='debug mode')
+parser.add_argument('--log_interval', type=int, default=2,
+                    help='log interval')
 parser.add_argument('--wvec', type=str, default='',
                     help='load pretrained word vector')
 parser.add_argument('--maxvocab', type=int, default=50000,
@@ -167,10 +171,13 @@ else:
 eval_batch_size = 10
 test_batch_size = 1
 train_data = batchify(corpus.train, args.batch_size, args)  # tensor 46479 * 20 929589 / tot words887521
-if args.debug:
-    train_data = train_data[:1000]
 val_data = batchify(corpus.valid, eval_batch_size, args)  # 7376 * 10  / 70390
 test_data = batchify(corpus.test, test_batch_size, args)  # 82430 * 1 / 78669 (tot tokens) + 3761 ('eos')
+if args.debug:
+    train_data = train_data[:50]
+    val_data = val_data[:50]
+    test_data = test_data[:50]
+
 
 ###############################################################################
 # Build the model
@@ -182,12 +189,11 @@ criterion = None
 
 ntokens = len(corpus.dictionary)  # 10000
 
-# pre_emb,_= tools.load_fasttext_embd(args.emb_path, corpus, words_to_load=100000, reload=False)
 if args.wvec:
     model = model.RNNModel(args.model, ntokens, args.emsize,  args.nhid, args.chunk_size, args.nlayers,
                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, pre_emb=pre_emb, )
 else:
-    model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
+    model = model.GPTRNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
 ###
 if args.resume:
@@ -220,7 +226,9 @@ params = list(model.parameters()) + list(criterion.parameters())
 total_params = sum(x.size()[0] * x.size()[1] if len(x.size()) > 1 else x.size()[0] for x in params if x.size())
 tools.print_log(args.save, args)
 tools.print_log(args.save, 'Model total parameters:{}'.format(total_params))
-
+tokenizer = OpenAIGPTTokenizer.from_pretrained('openai-gpt')
+with open('GPT_index.pkl', 'rb') as handle:
+    gptdic = pickle.load(handle)
 
 ###############################################################################
 # Training code
@@ -234,8 +242,10 @@ def evaluate(data_source, batch_size=10):
     ntokens = len(corpus.dictionary)
     hidden = model.init_hidden(batch_size)
     for i in range(0, data_source.size(0) - 1, args.bptt):
-        data, targets = get_batch(data_source, i, args, evaluation=True)
-        output, hidden = model(data, hidden)
+        # data, targets = get_batch(data_source, i, args, evaluation=True)
+        data, targets, gpt_ids, fl_ids = get_batch_gpt(data_source, i, args, gptdic)
+        # output, hidden = model(data, hidden)
+        output, hidden = model(data, hidden, gpt_ids, fl_ids)
         total_loss += len(data) * criterion(model.decoder.weight, model.decoder.bias, output, targets).data
         hidden = repackage_hidden(hidden)
     return total_loss.item() / len(data_source)
@@ -259,15 +269,17 @@ def train():
         lr2 = optimizer.param_groups[0]['lr']
         optimizer.param_groups[0]['lr'] = lr2 * seq_len / args.bptt
         model.train()
-        data, targets = get_batch(train_data, i, args, seq_len=seq_len)
+        data, targets, gpt_ids, fl_ids = get_batch_gpt(train_data, i, args, gptdic, seq_len=seq_len)
+        # data : SL * BS; target:(SL*BS) * 1; gpt_ids : BS * SL_GPT; fl_ids : BS * (2 * SL)
 
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
         hidden = repackage_hidden(hidden)
         optimizer.zero_grad()
 
-        output, hidden, rnn_hs, dropped_rnn_hs = model(data, hidden, return_h=True)
+        output, hidden, rnn_hs, dropped_rnn_hs = model(data, hidden, gpt_ids, fl_ids, return_h=True)
         # output, hidden = model(data, hidden, return_h=False)
+        # output: target_len * ES;
         raw_loss = criterion(model.decoder.weight, model.decoder.bias, output, targets)
 
         loss = raw_loss

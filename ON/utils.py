@@ -1,6 +1,9 @@
 import torch
 import pandas as pd
+import numpy as np
 import csv
+import itertools
+from pytorch_pretrained_bert import OpenAIGPTTokenizer
 
 def repackage_hidden(h):
     """Wraps hidden states in new Tensors,
@@ -23,11 +26,46 @@ def batchify(data, bsz, args):
     return data
 
 
-def get_batch(source, i, args, seq_len=None, evaluation=False):
+def get_batch(source, i, args, seq_len=None):
     seq_len = min(seq_len if seq_len else args.bptt, len(source) - 1 - i)
     data = source[i:i+seq_len]
     target = source[i+1:i+1+seq_len].view(-1)
     return data, target
+
+
+def get_batch_gpt(source, i, args, gptdic, seq_len=None):
+    seq_len = min(seq_len if seq_len else args.bptt, len(source) - 1 - i)
+    data = source[i:i+seq_len]
+    target = source[i+1:i+1+seq_len].view(-1)
+    input = data.t()
+    tokenizer = OpenAIGPTTokenizer.from_pretrained('openai-gpt')
+    gpt_tokens = []
+    fl_ids = []
+    max_len = 0
+    for i in range(len(input)):
+        gpt_token = [(gptdic[ele]) for ele in input[i].numpy()]
+        fl_id = []
+        cnt = 0
+        for r in range(len(gpt_token)):
+            if len(gpt_token[r]) == 1:
+                fl_id.extend([cnt, cnt])
+            else:
+                fl_id.extend([cnt, cnt+len(gpt_token[r]) - 1])
+            cnt = fl_id[-1] + 1
+        gpt_token = list(itertools.chain(*gpt_token))
+        gpt_tokens.append(gpt_token)
+        fl_ids.append(fl_id)
+        max_len = max(max_len, len(gpt_token))
+    fl_ids = torch.LongTensor(fl_ids)
+    gpt_ids = np.zeros((input.size(0), max_len))
+    for r in range(len(gpt_ids)):
+        gpt_id = tokenizer.convert_tokens_to_ids(gpt_tokens[r])
+        gpt_ids[r][:len(gpt_id)] = gpt_id
+    gpt_ids = torch.LongTensor([gpt_ids]).squeeze()
+    if len(gpt_ids.size()) == 1:
+        gpt_ids = gpt_ids.unsqueeze(0)
+
+    return data, target, gpt_ids, fl_ids
 
 
 def load_embeddings_txt(path):
