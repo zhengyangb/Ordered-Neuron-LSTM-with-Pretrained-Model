@@ -170,7 +170,7 @@ else:
 
 eval_batch_size = 10
 test_batch_size = 1
-train_data = batchify(corpus.train, args.batch_size, args)  # tensor 46479 * 20 929589 / tot words887521
+train_data = batchify(corpus.train, args.batch_size, args)  # tensor (46479 * 20) 929589 / tot words887521
 val_data = batchify(corpus.valid, eval_batch_size, args)  # 7376 * 10  / 70390
 test_data = batchify(corpus.test, test_batch_size, args)  # 82430 * 1 / 78669 (tot tokens) + 3761 ('eos')
 if args.debug:
@@ -243,7 +243,7 @@ def evaluate(data_source, batch_size=10):
     hidden = model.init_hidden(batch_size)
     for i in range(0, data_source.size(0) - 1, args.bptt):
         # data, targets = get_batch(data_source, i, args, evaluation=True)
-        data, targets, gpt_ids, fl_ids = get_batch_gpt(data_source, i, args, gptdic)
+        data, targets, gpt_ids, fl_ids = get_batch_gpt(data_source, i, args, gptdic, tokenizer,)
         # output, hidden = model(data, hidden)
         output, hidden = model(data, hidden, gpt_ids, fl_ids)
         total_loss += len(data) * criterion(model.decoder.weight, model.decoder.bias, output, targets).data
@@ -269,8 +269,8 @@ def train():
         lr2 = optimizer.param_groups[0]['lr']
         optimizer.param_groups[0]['lr'] = lr2 * seq_len / args.bptt
         model.train()
-        data, targets, gpt_ids, fl_ids = get_batch_gpt(train_data, i, args, gptdic, seq_len=seq_len)
-        # data : SL * BS; target:(SL*BS) * 1; gpt_ids : BS * SL_GPT; fl_ids : BS * (2 * SL)
+        data, targets, gpt_ids, fl_ids = get_batch_gpt(train_data, i, args, gptdic, tokenizer, seq_len=seq_len)
+        # data : SL * BS; target:(SL*BS); gpt_ids : BS * SL_GPT; fl_ids : BS * (2 * SL)
 
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
@@ -397,6 +397,7 @@ try:
             best_val_loss.append(val_loss)
 
         tools.print_log(args.save, "PROGRESS: {}%".format((epoch / args.epochs) * 100))
+        torch.cuda.empty_cache()
 
 except KeyboardInterrupt:
     tools.print_log(args.save, '-' * 89)

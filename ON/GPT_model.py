@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import pdb
 
 from embed_regularize import embedded_dropout
 from locked_dropout import LockedDropout
@@ -25,6 +26,7 @@ class OpenAIGPTONLSTMHead(nn.Module):
         # h_trunc = h[:, :-1].contiguous().view(-1, self.n_embd)
         lm_logits = self.decoder(hidden_state)
         return lm_logits
+
 
 class GPTRNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
@@ -66,6 +68,7 @@ class GPTRNNModel(nn.Module):
         self.dropouti = dropouti
         self.dropouth = dropouth
         self.dropoute = dropoute
+        self.distance = None
         self.tie_weights = tie_weights
 
 
@@ -84,19 +87,18 @@ class GPTRNNModel(nn.Module):
 
     def forward(self, input, hidden, gpt_ids, fl_ids, return_h=False):
         emb = self.transformer(gpt_ids)  # BS * GPT_SL * GPT_EMS
-        emb = torch.cat([emb[r, fl_ids[r], :].unsqueeze(0) for r in range(len(fl_ids))], dim=0)  # BS * (2*SL) * GPT_ES
-        emb = torch.nn.functional.avg_pool1d(emb.permute(0, 2, 1), 2)
-        emb = emb * 2  # BS * GPT_EMS * SL
-        emb = emb.permute(2, 0, 1)  # BS * SL * GPT_EMS
-        emb = self.encoder(emb)  # Goal: SL * BS * ES as in ONLSTM
+        emb = torch.cat([emb[r:r+1, fl_ids[r], :] for r in range(len(fl_ids))], dim=0)  # BS * (2*SL) * GPT_ES
+        emb = torch.nn.functional.avg_pool1d(emb.permute(0, 2, 1), 2) * 2  # BS * GPT_EMS * SL
+        emb = emb.permute(2, 0, 1)  # BS * SL * GPT_EMS -> SL * BS * ES
+        emb = self.encoder(emb)  # This dimension is required in ON-LSTM
+        # TODO Add back dropout
         # emb = embedded_dropout(
         #     self.encoder, input,
         #     dropout=self.dropoute if self.training else 0
         # )
         #
         # emb = self.lockdrop(emb, self.dropouti)
-        raw_output, hidden, raw_outputs, outputs, distances = self.rnn(emb, hidden)
-        self.distance = distances
+        raw_output, hidden, raw_outputs, outputs, self.distance = self.rnn(emb, hidden)
 
         output = self.lockdrop(raw_output, self.dropout)
 
