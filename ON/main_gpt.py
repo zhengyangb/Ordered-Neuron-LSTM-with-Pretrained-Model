@@ -168,11 +168,16 @@ else:
         corpus = data.Corpus(args.data)
         torch.save(corpus, fn)
 
+# Generate data
+
 eval_batch_size = 10
 test_batch_size = 1
+
+
 train_data = batchify(corpus.train, args.batch_size, args)  # tensor (46479 * 20) 929589 / tot words887521
 val_data = batchify(corpus.valid, eval_batch_size, args)  # 7376 * 10  / 70390
 test_data = batchify(corpus.test, test_batch_size, args)  # 82430 * 1 / 78669 (tot tokens) + 3761 ('eos')
+
 if args.debug:
     train_data = train_data[:50]
     val_data = val_data[:50]
@@ -312,9 +317,12 @@ def train():
                               elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss), cur_loss / math.log(2)))
             total_loss = 0
             start_time = time.time()
-        ###
+            # Print GPU Memory Usage
+            print('GPU Memory Usage:' + os.popen('nvidia-smi | grep MiB').read().split('|')[2].strip())
+            ###
         batch += 1
         i += seq_len
+        torch.cuda.empty_cache()
 
 
 # Loop over epochs.
@@ -397,18 +405,22 @@ try:
             best_val_loss.append(val_loss)
 
         tools.print_log(args.save, "PROGRESS: {}%".format((epoch / args.epochs) * 100))
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
 
 except KeyboardInterrupt:
     tools.print_log(args.save, '-' * 89)
     tools.print_log(args.save, 'Exiting from training early')
 
-# Load the best saved model.
-model_load(args.save+'.pt')
+try:
+    # Load the best saved model.
+    model_load(args.save+'.pt')
 
-# Run on test data.
-test_loss = evaluate(test_data, test_batch_size)
-tools.print_log(args.save, '=' * 89)
-tools.print_log(args.save, '| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
-    test_loss, math.exp(test_loss), test_loss / math.log(2)))
-tools.print_log(args.save, '=' * 89)
+    # Run on test data.
+    test_loss = evaluate(test_data, test_batch_size)
+    tools.print_log(args.save, '=' * 89)
+    tools.print_log(args.save, '| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
+        test_loss, math.exp(test_loss), test_loss / math.log(2)))
+    tools.print_log(args.save, '=' * 89)
+
+except FileNotFoundError:
+    print('No model saved so skipped testing.')
