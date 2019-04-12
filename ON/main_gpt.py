@@ -242,17 +242,19 @@ with open('GPT_index.pkl', 'rb') as handle:
 def evaluate(data_source, batch_size=10):
     # Turn on evaluation mode which disables dropout.
     model.eval()
-    if args.model == 'QRNN': model.reset()
-    total_loss = 0
-    ntokens = len(corpus.dictionary)
-    hidden = model.init_hidden(batch_size)
-    for i in range(0, data_source.size(0) - 1, args.bptt):
-        # data, targets = get_batch(data_source, i, args, evaluation=True)
-        data, targets, gpt_ids, fl_ids = get_batch_gpt(data_source, i, args, gptdic, tokenizer,)
-        # output, hidden = model(data, hidden)
-        output, hidden = model(data, hidden, gpt_ids, fl_ids)
-        total_loss += len(data) * criterion(model.decoder.weight, model.decoder.bias, output, targets).data
-        hidden = repackage_hidden(hidden)
+    with torch.no_grad():
+        if args.model == 'QRNN': model.reset()
+        total_loss = 0
+        ntokens = len(corpus.dictionary)
+        hidden = model.init_hidden(batch_size)
+        for i in range(0, data_source.size(0) - 1, args.bptt):
+            # data, targets = get_batch(data_source, i, args, evaluation=True)
+            data, targets, gpt_ids, fl_ids = get_batch_gpt(data_source, i, args, gptdic, tokenizer,)
+            # output, hidden = model(data, hidden)
+            output, hidden = model(data, hidden, gpt_ids, fl_ids)
+            total_loss += len(data) * criterion(model.decoder.weight, model.decoder.bias, output, targets).data
+            hidden = repackage_hidden(hidden)
+            torch.cuda.empty_cache()
     return total_loss.item() / len(data_source)
 
 
@@ -323,6 +325,8 @@ def train():
         batch += 1
         i += seq_len
         torch.cuda.empty_cache()
+    del data, targets, gpt_ids, fl_ids, hidden, loss, raw_loss
+    torch.cuda.empty_cache()
 
 
 # Loop over epochs.
@@ -342,6 +346,7 @@ try:
     for epoch in range(1, args.epochs + 1):
         epoch_start_time = time.time()
         train()
+        torch.cuda.empty_cache()
         if 't0' in optimizer.param_groups[0]:
             tmp = {}
             for prm in model.parameters():
@@ -349,6 +354,7 @@ try:
                 prm.data = optimizer.state[prm]['ax'].clone()
 
             val_loss2 = evaluate(val_data, eval_batch_size)
+            torch.cuda.empty_cache()
             tools.print_log(args.save, '-' * 89)
             tools.print_log(args.save, '| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                   'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
