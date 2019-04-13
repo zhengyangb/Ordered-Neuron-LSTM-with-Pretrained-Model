@@ -1,3 +1,7 @@
+#
+
+# python -u main_gpt.py --cuda --batch_size 20 --dropout 0.45 --dropouth 0.3 --dropouti 0.5 --wdrop 0.45 --chunk_size 10 --seed 141 --epoch 1000 --feature fixGPT
+
 import argparse
 import time
 import math
@@ -94,6 +98,7 @@ parser.add_argument('--finetuning', type=int, default=500,
                     help='When (which epochs) to switch to finetuning')
 parser.add_argument('--philly', action='store_true',
                     help='Use philly cluster')
+parser.add_argument('--feature', default='', type=str)
 args = parser.parse_args()
 args.tied = True
 
@@ -199,7 +204,7 @@ if args.wvec:
                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, pre_emb=pre_emb, )
 else:
     model = model.GPTRNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
-                       args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
+                       args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, args=args)
 ###
 if args.resume:
     tools.print_log(args.save, 'Resuming model ...')
@@ -266,6 +271,7 @@ def train():
     ntokens = len(corpus.dictionary)
     hidden = model.init_hidden(args.batch_size)
     batch, i = 0, 0
+    model.train()
     while i < train_data.size(0) - 1 - 1:
         bptt = args.bptt if np.random.random() < 0.95 else args.bptt / 2.
         # Prevent excessively small or negative sequence lengths
@@ -275,7 +281,7 @@ def train():
 
         lr2 = optimizer.param_groups[0]['lr']
         optimizer.param_groups[0]['lr'] = lr2 * seq_len / args.bptt
-        model.train()
+        # model.train()
         data, targets, gpt_ids, fl_ids = get_batch_gpt(train_data, i, args, gptdic, tokenizer, seq_len=seq_len)
         # data : SL * BS; target:(SL*BS); gpt_ids : BS * SL_GPT; fl_ids : BS * (2 * SL)
 
