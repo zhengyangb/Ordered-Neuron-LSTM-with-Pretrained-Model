@@ -357,7 +357,10 @@ try:
             tmp = {}
             for prm in model.parameters():
                 tmp[prm] = prm.data.clone()
-                prm.data = optimizer.state[prm]['ax'].clone()
+                try:
+                    prm.data = optimizer.state[prm]['ax'].clone()
+                except KeyError:
+                    pass
 
             val_loss2 = evaluate(val_data, eval_batch_size)
             torch.cuda.empty_cache()
