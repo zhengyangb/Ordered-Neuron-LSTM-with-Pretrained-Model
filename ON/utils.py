@@ -43,7 +43,7 @@ def get_batch_gpt(source, i, args, gptdic, seq_len=None):
     fl_ids = []
     max_len = 0
     for i in range(len(input)):
-        gpt_token = [(gptdic[ele]) for ele in input[i].numpy()]
+        gpt_token = [(gptdic[ele]) for ele in input[i].cpu().numpy()]
         fl_id = []
         cnt = 0
         for r in range(len(gpt_token)):
@@ -64,7 +64,9 @@ def get_batch_gpt(source, i, args, gptdic, seq_len=None):
     gpt_ids = torch.LongTensor([gpt_ids]).squeeze()
     if len(gpt_ids.size()) == 1:
         gpt_ids = gpt_ids.unsqueeze(0)
-
+    if args.cuda:
+        gpt_ids = gpt_ids.cuda()
+        fl_ids = fl_ids.cuda()
     return data, target, gpt_ids, fl_ids
 
 

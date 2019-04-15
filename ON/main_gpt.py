@@ -24,7 +24,7 @@ parser.add_argument('--data', type=str, default='data/penn',
                     help='location of the data corpus')
 parser.add_argument('--debug', default=False, action='store_true',
                     help='debug mode')
-parser.add_argument('--log_interval', type=int, default=2,
+parser.add_argument('--log_interval', type=int, default=200,
                     help='log interval')
 parser.add_argument('--wvec', type=str, default='',
                     help='load pretrained word vector')

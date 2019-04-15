@@ -18,6 +18,6 @@ def convert(corpus):
 
     with open('GPT_index.pkl', 'wb') as handle:
         pickle.dump(dic, handle, protocol=pickle.HIGHEST_PROTOCOL)
-fn = '/home/yh1844/Documents/NLU/NLU2019/ON/corpus.e15022e5794bc6f5de6639fcbac6670b.data'
+fn = 'corpus.e15022e5794bc6f5de6639fcbac6670b.data'
 corpus = torch.load(fn)
 convert(corpus)
