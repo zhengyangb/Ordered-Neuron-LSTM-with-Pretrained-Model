@@ -18,6 +18,8 @@ def batchify(data, bsz, args):
     # Work out how cleanly we can divide the dataset into bsz parts.
     nbatch = data.size(0) // bsz
     # Trim off any extra elements that wouldn't cleanly fit (remainders).
+    # i.e. make each batch have same size and no need to <pad>
+    # similar to `drop_last' flag in PyTorch.DataLoader
     data = data.narrow(0, 0, nbatch * bsz)
     # Evenly divide the data across the bsz batches.
     data = data.view(bsz, -1).t().contiguous()
@@ -33,12 +35,12 @@ def get_batch(source, i, args, seq_len=None):
     return data, target
 
 
-def get_batch_gpt(source, i, args, gptdic, seq_len=None):
+def get_batch_gpt(source, i, args, gptdic, tokenizer, seq_len=None):
     seq_len = min(seq_len if seq_len else args.bptt, len(source) - 1 - i)
     data = source[i:i+seq_len]
     target = source[i+1:i+1+seq_len].view(-1)
     input = data.t()
-    tokenizer = OpenAIGPTTokenizer.from_pretrained('openai-gpt')
+    # tokenizer = OpenAIGPTTokenizer.from_pretrained('openai-gpt')
     gpt_tokens = []
     fl_ids = []
     max_len = 0
@@ -47,10 +49,7 @@ def get_batch_gpt(source, i, args, gptdic, seq_len=None):
         fl_id = []
         cnt = 0
         for r in range(len(gpt_token)):
-            if len(gpt_token[r]) == 1:
-                fl_id.extend([cnt, cnt])
-            else:
-                fl_id.extend([cnt, cnt+len(gpt_token[r]) - 1])
+            fl_id.extend([cnt, cnt+len(gpt_token[r]) - 1])  # BeginOfWord_Location, EndOfWord_Location
             cnt = fl_id[-1] + 1
         gpt_token = list(itertools.chain(*gpt_token))
         gpt_tokens.append(gpt_token)

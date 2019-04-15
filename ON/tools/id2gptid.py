@@ -1,7 +1,11 @@
+# It seems that this needs to be run from the directory that the corpus is generated.
+
 from pytorch_pretrained_bert import OpenAIGPTModel
 import pickle
 from pytorch_pretrained_bert import OpenAIGPTTokenizer
 import torch
+import sys, os
+# sys.path.append(os.getcwd())
 
 #read corpus data first
 
@@ -9,6 +13,7 @@ tokenizer = OpenAIGPTTokenizer.from_pretrained('openai-gpt')
 
 dic = {}
 
+# If SpaCy is not installed it seems that it will use BERT tokenizer.
 
 def convert(corpus):
     for index, text in enumerate(corpus.dictionary.idx2word):

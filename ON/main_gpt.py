@@ -1,3 +1,7 @@
+#
+
+# python -u main_gpt.py --cuda --batch_size 20 --dropout 0.45 --dropouth 0.3 --dropouti 0.5 --wdrop 0.45 --chunk_size 10 --seed 141 --epoch 1000 --feature fixGPT
+
 import argparse
 import time
 import math
@@ -94,6 +98,7 @@ parser.add_argument('--finetuning', type=int, default=500,
                     help='When (which epochs) to switch to finetuning')
 parser.add_argument('--philly', action='store_true',
                     help='Use philly cluster')
+parser.add_argument('--feature', default='', type=str)
 args = parser.parse_args()
 args.tied = True
 
@@ -168,11 +173,16 @@ else:
         corpus = data.Corpus(args.data)
         torch.save(corpus, fn)
 
+# Generate data
+
 eval_batch_size = 10
 test_batch_size = 1
-train_data = batchify(corpus.train, args.batch_size, args)  # tensor 46479 * 20 929589 / tot words887521
+
+
+train_data = batchify(corpus.train, args.batch_size, args)  # tensor (46479 * 20) 929589 / tot words887521
 val_data = batchify(corpus.valid, eval_batch_size, args)  # 7376 * 10  / 70390
 test_data = batchify(corpus.test, test_batch_size, args)  # 82430 * 1 / 78669 (tot tokens) + 3761 ('eos')
+
 if args.debug:
     train_data = train_data[:50]
     val_data = val_data[:50]
@@ -194,7 +204,7 @@ if args.wvec:
                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, pre_emb=pre_emb, )
 else:
     model = model.GPTRNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
-                       args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
+                       args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, args=args)
 ###
 if args.resume:
     tools.print_log(args.save, 'Resuming model ...')
@@ -237,17 +247,19 @@ with open('GPT_index.pkl', 'rb') as handle:
 def evaluate(data_source, batch_size=10):
     # Turn on evaluation mode which disables dropout.
     model.eval()
-    if args.model == 'QRNN': model.reset()
-    total_loss = 0
-    ntokens = len(corpus.dictionary)
-    hidden = model.init_hidden(batch_size)
-    for i in range(0, data_source.size(0) - 1, args.bptt):
-        # data, targets = get_batch(data_source, i, args, evaluation=True)
-        data, targets, gpt_ids, fl_ids = get_batch_gpt(data_source, i, args, gptdic)
-        # output, hidden = model(data, hidden)
-        output, hidden = model(data, hidden, gpt_ids, fl_ids)
-        total_loss += len(data) * criterion(model.decoder.weight, model.decoder.bias, output, targets).data
-        hidden = repackage_hidden(hidden)
+    with torch.no_grad():
+        if args.model == 'QRNN': model.reset()
+        total_loss = 0
+        ntokens = len(corpus.dictionary)
+        hidden = model.init_hidden(batch_size)
+        for i in range(0, data_source.size(0) - 1, args.bptt):
+            # data, targets = get_batch(data_source, i, args, evaluation=True)
+            data, targets, gpt_ids, fl_ids = get_batch_gpt(data_source, i, args, gptdic, tokenizer,)
+            # output, hidden = model(data, hidden)
+            output, hidden = model(data, hidden, gpt_ids, fl_ids)
+            total_loss += len(data) * criterion(model.decoder.weight, model.decoder.bias, output, targets).data
+            hidden = repackage_hidden(hidden)
+            torch.cuda.empty_cache()
     return total_loss.item() / len(data_source)
 
 
@@ -259,6 +271,7 @@ def train():
     ntokens = len(corpus.dictionary)
     hidden = model.init_hidden(args.batch_size)
     batch, i = 0, 0
+    model.train()
     while i < train_data.size(0) - 1 - 1:
         bptt = args.bptt if np.random.random() < 0.95 else args.bptt / 2.
         # Prevent excessively small or negative sequence lengths
@@ -268,9 +281,9 @@ def train():
 
         lr2 = optimizer.param_groups[0]['lr']
         optimizer.param_groups[0]['lr'] = lr2 * seq_len / args.bptt
-        model.train()
-        data, targets, gpt_ids, fl_ids = get_batch_gpt(train_data, i, args, gptdic, seq_len=seq_len)
-        # data : SL * BS; target:(SL*BS) * 1; gpt_ids : BS * SL_GPT; fl_ids : BS * (2 * SL)
+        # model.train()
+        data, targets, gpt_ids, fl_ids = get_batch_gpt(train_data, i, args, gptdic, tokenizer, seq_len=seq_len)
+        # data : SL * BS; target:(SL*BS); gpt_ids : BS * SL_GPT; fl_ids : BS * (2 * SL)
 
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
@@ -312,9 +325,14 @@ def train():
                               elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss), cur_loss / math.log(2)))
             total_loss = 0
             start_time = time.time()
-        ###
+            # Print GPU Memory Usage
+            print('GPU Memory Usage:' + os.popen('nvidia-smi | grep MiB').read().split('|')[2].strip())
+            ###
         batch += 1
         i += seq_len
+        torch.cuda.empty_cache()
+    del data, targets, gpt_ids, fl_ids, hidden, loss, raw_loss
+    torch.cuda.empty_cache()
 
 
 # Loop over epochs.
@@ -334,13 +352,18 @@ try:
     for epoch in range(1, args.epochs + 1):
         epoch_start_time = time.time()
         train()
+        torch.cuda.empty_cache()
         if 't0' in optimizer.param_groups[0]:
             tmp = {}
             for prm in model.parameters():
                 tmp[prm] = prm.data.clone()
-                prm.data = optimizer.state[prm]['ax'].clone()
+                try:
+                    prm.data = optimizer.state[prm]['ax'].clone()
+                except KeyError:
+                    pass
 
             val_loss2 = evaluate(val_data, eval_batch_size)
+            torch.cuda.empty_cache()
             tools.print_log(args.save, '-' * 89)
             tools.print_log(args.save, '| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                   'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
@@ -397,17 +420,22 @@ try:
             best_val_loss.append(val_loss)
 
         tools.print_log(args.save, "PROGRESS: {}%".format((epoch / args.epochs) * 100))
+        # torch.cuda.empty_cache()
 
 except KeyboardInterrupt:
     tools.print_log(args.save, '-' * 89)
     tools.print_log(args.save, 'Exiting from training early')
 
-# Load the best saved model.
-model_load(args.save+'.pt')
+try:
+    # Load the best saved model.
+    model_load(args.save+'.pt')
 
-# Run on test data.
-test_loss = evaluate(test_data, test_batch_size)
-tools.print_log(args.save, '=' * 89)
-tools.print_log(args.save, '| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
-    test_loss, math.exp(test_loss), test_loss / math.log(2)))
-tools.print_log(args.save, '=' * 89)
+    # Run on test data.
+    test_loss = evaluate(test_data, test_batch_size)
+    tools.print_log(args.save, '=' * 89)
+    tools.print_log(args.save, '| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
+        test_loss, math.exp(test_loss), test_loss / math.log(2)))
+    tools.print_log(args.save, '=' * 89)
+
+except FileNotFoundError:
+    print('No model saved so skipped testing.')

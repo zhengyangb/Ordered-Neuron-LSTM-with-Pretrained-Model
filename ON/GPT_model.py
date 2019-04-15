@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import pdb
 
 from embed_regularize import embedded_dropout
 from locked_dropout import LockedDropout
@@ -26,11 +27,12 @@ class OpenAIGPTONLSTMHead(nn.Module):
         lm_logits = self.decoder(hidden_state)
         return lm_logits
 
+
 class GPTRNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
     def __init__(self, rnn_type, ntoken, ninp, nhid, chunk_size, nlayers,  dropout=0.5, dropouth=0.5, dropouti=0.5,
-                 dropoute=0.1, wdrop=0, tie_weights=False, ):
+                 dropoute=0.1, wdrop=0, tie_weights=False, args=None):
         super(GPTRNNModel, self).__init__()
         self.transformer = OpenAIGPTModel.from_pretrained('openai-gpt')
         self.lockdrop = LockedDropout()
@@ -38,6 +40,7 @@ class GPTRNNModel(nn.Module):
         self.hdrop = nn.Dropout(dropouth)
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Linear(768, ninp)
+        self.args = args
 
         assert rnn_type in ['LSTM'], 'RNN type is not supported'
         self.rnn = ONLSTMStack(
@@ -66,6 +69,7 @@ class GPTRNNModel(nn.Module):
         self.dropouti = dropouti
         self.dropouth = dropouth
         self.dropoute = dropoute
+        self.distance = None
         self.tie_weights = tie_weights
 
 
@@ -83,20 +87,24 @@ class GPTRNNModel(nn.Module):
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, input, hidden, gpt_ids, fl_ids, return_h=False):
-        emb = self.transformer(gpt_ids)  # BS * GPT_SL * GPT_EMS
-        emb = torch.cat([emb[r, fl_ids[r], :].unsqueeze(0) for r in range(len(fl_ids))], dim=0)  # BS * (2*SL) * GPT_ES
-        emb = torch.nn.functional.avg_pool1d(emb.permute(0, 2, 1), 2)
-        emb = emb * 2  # BS * GPT_EMS * SL
-        emb = emb.permute(2, 0, 1)  # BS * SL * GPT_EMS
-        emb = self.encoder(emb)  # Goal: SL * BS * ES as in ONLSTM
+        if self.args.feature is not None and 'fixGPT' in self.args.feature.split('_'):
+            with torch.no_grad():
+                emb = self.transformer(gpt_ids)
+        else:
+            emb = self.transformer(gpt_ids)  # BS * GPT_SL * GPT_EMS
+
+        emb = torch.cat([emb[r:r+1, fl_ids[r], :] for r in range(len(fl_ids))], dim=0)  # BS * (2*SL) * GPT_ES
+        emb = torch.nn.functional.avg_pool1d(emb.permute(0, 2, 1), 2) * 2  # BS * GPT_EMS * SL
+        emb = emb.permute(2, 0, 1)  # BS * SL * GPT_EMS -> SL * BS * ES
+        emb = self.encoder(emb)  # This dimension is required in ON-LSTM
+        # TODO Add back dropout
         # emb = embedded_dropout(
         #     self.encoder, input,
         #     dropout=self.dropoute if self.training else 0
         # )
         #
         # emb = self.lockdrop(emb, self.dropouti)
-        raw_output, hidden, raw_outputs, outputs, distances = self.rnn(emb, hidden)
-        self.distance = distances
+        raw_output, hidden, raw_outputs, outputs, self.distance = self.rnn(emb, hidden)
 
         output = self.lockdrop(raw_output, self.dropout)
 
