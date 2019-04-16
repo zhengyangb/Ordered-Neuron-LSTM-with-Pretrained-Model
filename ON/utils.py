@@ -84,7 +84,7 @@ def get_batch_gpt(source, i, args, gptdic, tokenizer, seq_len=None):
     if args.cuda:
         gpt_ids = gpt_ids.cuda()
         fl_ids = fl_ids.cuda()
-        target_gpt_ids.cuda()
+        target_gpt_ids = target_gpt_ids.cuda()
     return data, target, gpt_ids, fl_ids, target_gpt_ids.view(-1)
 
 
