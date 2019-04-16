@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 import torch.optim.lr_scheduler as lr_scheduler
 import pickle
+import pdb
 
 import data
 from model import RNNModel
@@ -222,6 +223,7 @@ else:
     else:
         model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
                          args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, )
+
 if 'fixLastBlock' in args.feature.split('_'):
     # pdb.set_trace()
     transformer = [m for i, m in model.named_children() if i == 'transformer'][0]
@@ -234,6 +236,7 @@ if 'fixLastBlock' in args.feature.split('_'):
                 p.requries_grad = False
 
      # TODO there is BERTLayerNorm()
+
 ###
 if args.resume:
     tools.print_log(args.save, 'Resuming model ...')
