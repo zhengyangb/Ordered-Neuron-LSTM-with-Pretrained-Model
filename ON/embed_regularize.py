@@ -22,6 +22,16 @@ def embedded_dropout(embed, words, dropout=0.1, scale=None):
   )
   return X
 
+def embedded_dropout_gpt(embed, dropout=0.1, scale=None):
+  if dropout:
+    # embed: SL * BS * GPT_ES
+    mask = embed.weight.data.new().resize_((embed.weight.size(0), 1)).bernoulli_(1 - dropout).expand_as(
+      embed.weight) / (1 - dropout)
+    embed.weight = torch.nn.Parameter(mask * embed.weight)
+  if scale:
+    embed.weight = torch.nn.Parameter(scale.expand_as(embed.weight) * embed.weight)
+  return embed
+
 
 if __name__ == '__main__':
   V = 50

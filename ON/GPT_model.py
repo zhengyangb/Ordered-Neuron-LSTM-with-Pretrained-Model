@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import pdb
 
-from embed_regularize import embedded_dropout
+from embed_regularize import embedded_dropout_gpt
 from locked_dropout import LockedDropout
 from weight_drop import WeightDrop
 from ON_LSTM import ONLSTMStack
@@ -96,14 +96,18 @@ class GPTRNNModel(nn.Module):
         emb = torch.cat([emb[r:r+1, fl_ids[r], :] for r in range(len(fl_ids))], dim=0)  # BS * (2*SL) * GPT_ES
         emb = torch.nn.functional.avg_pool1d(emb.permute(0, 2, 1), 2) * 2  # BS * GPT_EMS * SL
         emb = emb.permute(2, 0, 1)  # BS * SL * GPT_EMS -> SL * BS * ES
-        emb = self.encoder(emb)  # This dimension is required in ON-LSTM
+        self.encoder = embedded_dropout_gpt(self.encoder,
+            dropout=self.dropoute if self.training else 0
+        )
+        emb = self.encoder(emb)  
+        # This dimension is required in ON-LSTM
         # TODO Add back dropout
         # emb = embedded_dropout(
         #     self.encoder, input,
         #     dropout=self.dropoute if self.training else 0
         # )
         #
-        # emb = self.lockdrop(emb, self.dropouti)
+        emb = self.lockdrop(emb, self.dropouti)
         raw_output, hidden, raw_outputs, outputs, self.distance = self.rnn(emb, hidden)
 
         output = self.lockdrop(raw_output, self.dropout)
