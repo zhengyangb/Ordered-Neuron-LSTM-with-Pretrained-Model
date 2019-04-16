@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 import torch.optim.lr_scheduler as lr_scheduler
 import pickle
+import pdb
 
 import data
 import GPT_model as model
@@ -205,6 +206,23 @@ if args.wvec:
 else:
     model = model.GPTRNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, args=args)
+
+# Feature: Fix all but the last layer:
+if 'fixLastBlock' in args.feature.split('_'):
+    # pdb.set_trace()
+    transformer = [m for i, m in model.named_children() if i == 'transformer'][0]
+    blocks = [m for i, m in transformer.named_children() if i == 'h'][0]
+    for i, m in blocks.named_children():
+        if i == '11':
+            break
+        else:
+            for p in m.parameters():
+                p.requries_grad = False
+
+    # TODO there is BERTLayerNorm()
+
+
+
 ###
 if args.resume:
     tools.print_log(args.save, 'Resuming model ...')
@@ -232,7 +250,7 @@ if args.cuda:
     model = model.cuda()
     criterion = criterion.cuda()
 ###
-params = list(model.parameters()) + list(criterion.parameters())
+params = list(filter(lambda x: x.requires_grad, model.parameters())) + list(criterion.parameters())
 total_params = sum(x.size()[0] * x.size()[1] if len(x.size()) > 1 else x.size()[0] for x in params if x.size())
 tools.print_log(args.save, args)
 tools.print_log(args.save, 'Model total parameters:{}'.format(total_params))
@@ -326,7 +344,8 @@ def train():
             total_loss = 0
             start_time = time.time()
             # Print GPU Memory Usage
-            print('GPU Memory Usage:' + os.popen('nvidia-smi | grep MiB').read().split('|')[2].strip())
+            if args.cuda:
+                print('GPU Memory Usage:' + os.popen('nvidia-smi | grep MiB').read().split('|')[2].strip())
             ###
         batch += 1
         i += seq_len
