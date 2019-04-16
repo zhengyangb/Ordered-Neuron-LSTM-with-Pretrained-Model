@@ -39,13 +39,19 @@ def get_batch_gpt(source, i, args, gptdic, tokenizer, seq_len=None):
     seq_len = min(seq_len if seq_len else args.bptt, len(source) - 1 - i)
     data = source[i:i+seq_len]
     target = source[i+1:i+1+seq_len].view(-1)
-    target_gpt = [(gptdic[ele]) for ele in target_gpt[i].cpu().numpy()]
-    target_gpt_id = tokenizer.convert_tokens_to_ids(target_gpt)
+    target_gpt = source[i+1:i+1+seq_len].t()
+    max_len_t = 0
+    target_gpt_tokens = []
+    for i in range(len(target_gpt)):
+        target_gpt_token = [(gptdic[ele]) for ele in target_gpt[i].cpu().numpy()]
+        target_gpt_token = list(itertools.chain(*target_gpt_token))
+        target_gpt_tokens.append(target_gpt_token)
+        max_len_t = max(max_len_t, len(target_gpt_token))
+
     input = data.t()
-    # tokenizer = OpenAIGPTTokenizer.from_pretrained('openai-gpt')
     gpt_tokens = []
     fl_ids = []
-    max_len = 0
+    max_len_i = 0
     for i in range(len(input)):
         gpt_token = [(gptdic[ele]) for ele in input[i].cpu().numpy()]
         fl_id = []
@@ -56,19 +62,30 @@ def get_batch_gpt(source, i, args, gptdic, tokenizer, seq_len=None):
         gpt_token = list(itertools.chain(*gpt_token))
         gpt_tokens.append(gpt_token)
         fl_ids.append(fl_id)
-        max_len = max(max_len, len(gpt_token))
+        max_len_i = max(max_len_i, len(gpt_token))
     fl_ids = torch.LongTensor(fl_ids)
-    gpt_ids = np.zeros((input.size(0), max_len)).fill_(-1)
+    max_len = max(max_len_i, max_len_t)
+    gpt_ids = np.zeros((input.size(0), max_len))
     for r in range(len(gpt_ids)):
         gpt_id = tokenizer.convert_tokens_to_ids(gpt_tokens[r])
         gpt_ids[r][:len(gpt_id)] = gpt_id
     gpt_ids = torch.LongTensor([gpt_ids]).squeeze()
     if len(gpt_ids.size()) == 1:
         gpt_ids = gpt_ids.unsqueeze(0)
+
+    target_gpt_ids = np.full((target_gpt.size(0), max_len), -1)
+
+    for r in range(len(target_gpt_ids)):
+        target_gpt_id = tokenizer.convert_tokens_to_ids(target_gpt_tokens[r])
+        target_gpt_ids[r][:len(target_gpt_id)] = target_gpt_id
+    target_gpt_ids = torch.LongTensor([target_gpt_ids]).squeeze()
+    if len(target_gpt_ids.size()) == 1:
+        target_gpt_ids = target_gpt_ids.unsqueeze(0)
     if args.cuda:
         gpt_ids = gpt_ids.cuda()
         fl_ids = fl_ids.cuda()
-    return data, target, gpt_ids, fl_ids, target_gpt_id
+        target_gpt_ids.cuda()
+    return data, target, gpt_ids, fl_ids, target_gpt_ids.view(-1)
 
 
 def load_embeddings_txt(path):

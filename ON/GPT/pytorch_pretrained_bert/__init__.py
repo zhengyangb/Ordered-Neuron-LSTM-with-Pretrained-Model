@@ -9,7 +9,7 @@ from .modeling import (BertConfig, BertModel, BertForPreTraining,
                        BertForSequenceClassification, BertForMultipleChoice,
                        BertForTokenClassification, BertForQuestionAnswering,
                        load_tf_weights_in_bert)
-from .modeling_openai import (OpenAIGPTConfig, OpenAIGPTModel,
+from .modeling_openai import (OpenAIGPTConfig, OpenAIGPTModel, OpenAIGPTLMHead,
                               OpenAIGPTLMHeadModel, OpenAIGPTDoubleHeadsModel,
                               load_tf_weights_in_openai_gpt)
 from .modeling_transfo_xl import (TransfoXLConfig, TransfoXLModel, TransfoXLLMHeadModel,

@@ -6,27 +6,7 @@ from embed_regularize import embedded_dropout_gpt
 from locked_dropout import LockedDropout
 from weight_drop import WeightDrop
 from ON_LSTM import ONLSTMStack
-from pytorch_pretrained_bert import OpenAIGPTTokenizer, OpenAIGPTModel, OpenAIGPTLMHeadModel
-import modeling_openai
-
-class OpenAIGPTONLSTMHead(nn.Module):
-    """ Language Model Head for the transformer """
-
-    def __init__(self, model_embeddings_weights, args):
-        super(OpenAIGPTONLSTMHead, self).__init__()
-        self.n_embd = args.emsize
-        self.set_embeddings_weights(model_embeddings_weights)
-
-    def set_embeddings_weights(self, model_embeddings_weights):
-        embed_shape = model_embeddings_weights.shape
-        self.decoder = nn.Linear(embed_shape[1], embed_shape[0], bias=False)
-        self.decoder.weight = model_embeddings_weights  # Tied weights
-
-    def forward(self, hidden_state):
-        # Truncated Language modeling logits (we remove the last token)
-        # h_trunc = h[:, :-1].contiguous().view(-1, self.n_embd)
-        lm_logits = self.decoder(hidden_state)
-        return lm_logits
+from GPT.pytorch_pretrained_bert import OpenAIGPTModel, OpenAIGPTConfig, OpenAIGPTLMHead
 
 
 class GPTRNNModel(nn.Module):
@@ -36,7 +16,7 @@ class GPTRNNModel(nn.Module):
                  dropoute=0.1, wdrop=0, tie_weights=False, args=None):
         super(GPTRNNModel, self).__init__()
         self.transformer = OpenAIGPTModel.from_pretrained('openai-gpt')
-        config = modeling_openai.OpenAIGPTConfig()
+        config = OpenAIGPTConfig()
         self.lm_head = OpenAIGPTLMHead(self.transformer.tokens_embed.weight, config)
         self.lockdrop = LockedDropout()
         self.idrop = nn.Dropout(dropouti)
@@ -97,21 +77,14 @@ class GPTRNNModel(nn.Module):
             emb = self.transformer(gpt_ids)  # BS * GPT_SL * GPT_EMS
 
         lm_logits = self.lm_head(emb)
-        shift_logits = lm_logits[..., :-1, :].contiguous()
+        # shift_logits = lm_logits[..., :-1, :].contiguous()
         emb = torch.cat([emb[r:r+1, fl_ids[r], :] for r in range(len(fl_ids))], dim=0)  # BS * (2*SL) * GPT_ES
         emb = torch.nn.functional.avg_pool1d(emb.permute(0, 2, 1), 2) * 2  # BS * GPT_EMS * SL
         emb = emb.permute(2, 0, 1)  # BS * SL * GPT_EMS -> SL * BS * ES
         self.encoder = embedded_dropout_gpt(self.encoder,
             dropout=self.dropoute if self.training else 0
         )
-        emb = self.encoder(emb)  
-        # This dimension is required in ON-LSTM
-        # TODO Add back dropout
-        # emb = embedded_dropout(
-        #     self.encoder, input,
-        #     dropout=self.dropoute if self.training else 0
-        # )
-        #
+        emb = self.encoder(emb)
         emb = self.lockdrop(emb, self.dropouti)
         raw_output, hidden, raw_outputs, outputs, self.distance = self.rnn(emb, hidden)
 
@@ -119,9 +92,9 @@ class GPTRNNModel(nn.Module):
 
         result = output.view(output.size(0)*output.size(1), output.size(2))
         if return_h:
-            return result, hidden, raw_outputs, outputs, shift_logits.view(-1, shift_logits.size(-1))
+            return result, hidden, raw_outputs, outputs, lm_logits.view(-1, lm_logits.size(-1))
         else:
-            return result, hidden, loss
+            return result, hidden
 
     def init_hidden(self, bsz):
         return self.rnn.init_hidden(bsz)

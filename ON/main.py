@@ -167,11 +167,12 @@ else:
 eval_batch_size = 10
 test_batch_size = 1
 train_data = batchify(corpus.train, args.batch_size, args)  # tensor 46479 * 20 929589 / tot words887521
-if args.debug:
-    train_data = train_data[:1000]
 val_data = batchify(corpus.valid, eval_batch_size, args)  # 7376 * 10  / 70390
 test_data = batchify(corpus.test, test_batch_size, args)  # 82430 * 1 / 78669 (tot tokens) + 3761 ('eos')
-
+if args.debug:
+    train_data = train_data[:5000]
+    val_data = val_data[:500]
+    test_data = test_data[:5000]
 ###############################################################################
 # Build the model
 ###############################################################################

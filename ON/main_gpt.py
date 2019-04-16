@@ -21,15 +21,11 @@ from splitcross import SplitCrossEntropyLoss
 from utils import batchify, get_batch, get_batch_gpt, repackage_hidden
 import tools
 from pytorch_pretrained_bert import OpenAIGPTTokenizer, OpenAIGPTModel, OpenAIAdam
+from torch.nn import CrossEntropyLoss
 
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
 
 # data
-parser.add_argument('--learning_rate', type=float, default=6.25e-5)
-parser.add_argument('--lm_coef', type=float, default=0.9)
-parser.add_argument('--warmup_proportion', type=float, default=0.002)
-parser.add_argument('--max_grad_norm', type=int, default=1)
-parser.add_argument('--weight_decay', type=float, default=0.01)
 parser.add_argument('--data', type=str, default='data/penn',
                     help='location of the data corpus')
 parser.add_argument('--debug', default=False, action='store_true',
@@ -45,6 +41,15 @@ parser.add_argument('-n', '--name', default=tools.date_hash(),
 parser.add_argument('--output', metavar='SAVE DIR',
                     default='res/',
                     help='path to save result')
+
+# GPT
+parser.add_argument('--learning_rate', type=float, default=6.25e-5)
+parser.add_argument('--lm_coef', type=float, default=0.9)
+parser.add_argument('--warmup_proportion', type=float, default=0.002)
+parser.add_argument('--max_grad_norm', type=int, default=1)
+parser.add_argument('--weight_decay', type=float, default=0.01)
+parser.add_argument('--lr_schedule', type=str, default='warmup_linear')
+
 # model
 parser.add_argument('--mode', type=str, default='',
                     help='whether to use GPT pre-trained model')
@@ -192,9 +197,9 @@ val_data = batchify(corpus.valid, eval_batch_size, args)  # 7376 * 10  / 70390
 test_data = batchify(corpus.test, test_batch_size, args)  # 82430 * 1 / 78669 (tot tokens) + 3761 ('eos')
 
 if args.debug:
-    train_data = train_data[:50]
-    val_data = val_data[:50]
-    test_data = test_data[:50]
+    train_data = train_data[:5000]
+    val_data = val_data[:500]
+    test_data = test_data[:5000]
 
 ###############################################################################
 # Build the model
@@ -255,7 +260,7 @@ optimizer_grouped_parameters = [
     {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay) and 'transformer' in n],
      'weight_decay': 0.0}
 ]
-num_train_optimization_steps = len(train_data) * args.epochs // args.batch_size
+num_train_optimization_steps = train_data.size(0) * args.epochs // args.batch_size
 optimizer_gpt = OpenAIAdam(optimizer_grouped_parameters,
                            lr=args.learning_rate,
                            warmup=args.warmup_proportion,
@@ -289,7 +294,7 @@ def evaluate(data_source, batch_size=10):
             # data, targets = get_batch(data_source, i, args, evaluation=True)
             data, targets, gpt_ids, fl_ids, tgt_gpt_id = get_batch_gpt(data_source, i, args, gptdic, tokenizer, )
             # output, hidden = model(data, hidden)
-            output, hidden, gpt_out = model(data, hidden, gpt_ids, fl_ids)
+            output, hidden = model(data, hidden, gpt_ids, fl_ids)
             total_loss += len(data) * criterion(model.decoder.weight, model.decoder.bias, output, targets).data
             hidden = repackage_hidden(hidden)
             torch.cuda.empty_cache()
@@ -312,9 +317,8 @@ def train():
         # There's a very small chance that it could select a very long sequence length resulting in OOM
         # seq_len = min(seq_len, args.bptt + 10)
 
-        lr2 = optimizer.param_groups[0]['lr']
+        lr2 = optimizer.param_groups[0]['lr']  # 16 param
         optimizer.param_groups[0]['lr'] = lr2 * seq_len / args.bptt
-        # model.train()
         data, targets, gpt_ids, fl_ids, tgt_gpt_id = get_batch_gpt(train_data, i, args, gptdic, tokenizer,
                                                                    seq_len=seq_len)
         # data : SL * BS; target:(SL*BS); gpt_ids : BS * SL_GPT; fl_ids : BS * (2 * SL)
@@ -324,7 +328,6 @@ def train():
         hidden = repackage_hidden(hidden)
         optimizer.zero_grad()
         optimizer_gpt.zero_grad()
-
         output, hidden, rnn_hs, dropped_rnn_hs, gpt_out = model(data, hidden, gpt_ids, fl_ids, return_h=True)
         # output, hidden = model(data, hidden, return_h=False)
         # output: target_len * ES;
