@@ -7,6 +7,7 @@ from locked_dropout import LockedDropout
 from weight_drop import WeightDrop
 from ON_LSTM import ONLSTMStack
 from pytorch_pretrained_bert import OpenAIGPTTokenizer, OpenAIGPTModel, OpenAIGPTLMHeadModel
+import modeling_openai
 
 class OpenAIGPTONLSTMHead(nn.Module):
     """ Language Model Head for the transformer """
@@ -35,6 +36,8 @@ class GPTRNNModel(nn.Module):
                  dropoute=0.1, wdrop=0, tie_weights=False, args=None):
         super(GPTRNNModel, self).__init__()
         self.transformer = OpenAIGPTModel.from_pretrained('openai-gpt')
+        config = modeling_openai.OpenAIGPTConfig()
+        self.lm_head = OpenAIGPTLMHead(self.transformer.tokens_embed.weight, config)
         self.lockdrop = LockedDropout()
         self.idrop = nn.Dropout(dropouti)
         self.hdrop = nn.Dropout(dropouth)
@@ -93,6 +96,8 @@ class GPTRNNModel(nn.Module):
         else:
             emb = self.transformer(gpt_ids)  # BS * GPT_SL * GPT_EMS
 
+        lm_logits = self.lm_head(emb)
+        shift_logits = lm_logits[..., :-1, :].contiguous()
         emb = torch.cat([emb[r:r+1, fl_ids[r], :] for r in range(len(fl_ids))], dim=0)  # BS * (2*SL) * GPT_ES
         emb = torch.nn.functional.avg_pool1d(emb.permute(0, 2, 1), 2) * 2  # BS * GPT_EMS * SL
         emb = emb.permute(2, 0, 1)  # BS * SL * GPT_EMS -> SL * BS * ES
@@ -114,9 +119,9 @@ class GPTRNNModel(nn.Module):
 
         result = output.view(output.size(0)*output.size(1), output.size(2))
         if return_h:
-            return result, hidden, raw_outputs, outputs
+            return result, hidden, raw_outputs, outputs, shift_logits.view(-1, shift_logits.size(-1))
         else:
-            return result, hidden
+            return result, hidden, loss
 
     def init_hidden(self, bsz):
         return self.rnn.init_hidden(bsz)

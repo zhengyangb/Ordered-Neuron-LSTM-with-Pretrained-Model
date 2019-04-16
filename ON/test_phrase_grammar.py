@@ -219,25 +219,28 @@ def test(model, corpus, cuda, prt=False):
             plt.xlim(left=-0.5, right=distance.shape[1] - 0.5)
             plt.xticks(np.arange(distance.shape[1]), sen, fontsize=10, rotation=45)
 
-            plt.savefig('figure/%d.png' % (nsens))
+            figure_dir = model_dir + '/figure/'
+            if not os.path.exists(figure_dir):
+                os.makedirs(figure_dir)
+            plt.savefig(figure_dir+'%d.png' % (nsens))
             plt.close()
 
     prec_list, reca_list, f1_list \
         = np.array(prec_list).reshape((-1,1)), np.array(reca_list).reshape((-1,1)), np.array(f1_list).reshape((-1,1))
     if prt:
         tools.print_log(args.save, '-' * 80)
-        np.set_printoptions(precision=4)
-        tools.print_log(args.save, 'Mean Prec:{}, Mean Reca:{}, Mean F1:{}'.format(prec_list.mean(axis=0), reca_list.mean(axis=0), f1_list.mean(axis=0)))
+        np.set_printoptions(precision=1)
+        tools.print_log(args.save, 'Mean Prec:{}, Mean Reca:{}, Mean F1:{:.1f}, Std F1:{:.1f}'.format(100 * prec_list.mean(axis=0), 100 * reca_list.mean(axis=0), 100 * f1_list.mean(axis=0), np.std(f1_list, axis=0)))
         tools.print_log(args.save, 'Number of sentence: %i' % nsens)
 
         correct, total = corpus_stats_labeled(corpus_sys, corpus_ref)
         tools.print_log(args.save, correct)
         tools.print_log(args.save, total)
-        tools.print_log(args.save, 'ADJP:{}, {}'.format(correct['ADJP'], total['ADJP']))
-        tools.print_log(args.save, 'NP::{}, {}'.format(correct['NP'], total['NP']))
-        tools.print_log(args.save, 'PP::{}, {}'.format(correct['PP'], total['PP']))
-        tools.print_log(args.save, 'INTJ::{}, {}'.format(correct['INTJ'], total['INTJ']))
-        tools.print_log(args.save, corpus_average_depth(corpus_sys))
+        tools.print_log(args.save, 'ADJP:{}, {}, {}'.format(correct['ADJP'], total['ADJP'], 100 * correct['ADJP'] / total['ADJP']))
+        tools.print_log(args.save, 'NP::{}, {}, {}'.format(correct['NP'], total['NP'], 100 * correct['NP'] / total['NP']))
+        tools.print_log(args.save, 'PP::{}, {}, {}'.format(correct['PP'], total['PP'], 100 * correct['PP'] / total['PP']))
+        tools.print_log(args.save, 'INTJ::{}, {}, {}'.format(correct['INTJ'], total['INTJ'], 100 * correct['INTJ'] / total['INTJ']))
+        tools.print_log(args.save, 'Averaged Depth {}'.format(corpus_average_depth(corpus_sys)))
 
         evalb(pred_tree_list, targ_tree_list)
 

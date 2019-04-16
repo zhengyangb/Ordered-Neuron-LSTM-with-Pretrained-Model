@@ -14,16 +14,22 @@ import torch.optim.lr_scheduler as lr_scheduler
 import pickle
 
 import data
-import GPT_model as model
+from model import RNNModel
+from GPT_model import GPTRNNModel
 import pickle as pkl
 from splitcross import SplitCrossEntropyLoss
 from utils import batchify, get_batch, get_batch_gpt, repackage_hidden
 import tools
-from pytorch_pretrained_bert import OpenAIGPTTokenizer, OpenAIGPTModel, OpenAIGPTLMHeadModel
+from pytorch_pretrained_bert import OpenAIGPTTokenizer, OpenAIGPTModel, OpenAIAdam
 
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
 
 # data
+parser.add_argument('--learning_rate', type=float, default=6.25e-5)
+parser.add_argument('--lm_coef', type=float, default=0.9)
+parser.add_argument('--warmup_proportion', type=float, default=0.002)
+parser.add_argument('--max_grad_norm', type=int, default=1)
+parser.add_argument('--weight_decay', type=float, default=0.01)
 parser.add_argument('--data', type=str, default='data/penn',
                     help='location of the data corpus')
 parser.add_argument('--debug', default=False, action='store_true',
@@ -37,9 +43,11 @@ parser.add_argument('--maxvocab', type=int, default=50000,
 parser.add_argument('-n', '--name', default=tools.date_hash(),
                     help='checkpoint file name')
 parser.add_argument('--output', metavar='SAVE DIR',
-                    default='./res/',
+                    default='res/',
                     help='path to save result')
 # model
+parser.add_argument('--mode', type=str, default='',
+                    help='whether to use GPT pre-trained model')
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (LSTM, QRNN, GRU)')
 parser.add_argument('--emsize', type=int, default=400,
@@ -120,6 +128,7 @@ if torch.cuda.is_available():
     else:
         torch.cuda.manual_seed(args.seed)
 
+
 ###############################################################################
 # Load data
 ###############################################################################
@@ -144,7 +153,7 @@ if args.wvec:
     word_vec_dir = 'data/wordvec/'
     if not os.path.exists(word_vec_dir):
         os.makedirs(word_vec_dir)
-    fn = 'corpus.{}.data'.format(hashlib.md5((args.data+args.wvec).encode()).hexdigest())  # 1ce....
+    fn = 'corpus.{}.data'.format(hashlib.md5((args.data + args.wvec).encode()).hexdigest())  # 1ce....
     # Load preprocessed vocab dict
     if os.path.exists(fn):
         tools.print_log(args.save, 'Loading cached dataset...')
@@ -178,7 +187,6 @@ else:
 eval_batch_size = 10
 test_batch_size = 1
 
-
 train_data = batchify(corpus.train, args.batch_size, args)  # tensor (46479 * 20) 929589 / tot words887521
 val_data = batchify(corpus.valid, eval_batch_size, args)  # 7376 * 10  / 70390
 test_data = batchify(corpus.test, test_batch_size, args)  # 82430 * 1 / 78669 (tot tokens) + 3761 ('eos')
@@ -187,7 +195,6 @@ if args.debug:
     train_data = train_data[:50]
     val_data = val_data[:50]
     test_data = test_data[:50]
-
 
 ###############################################################################
 # Build the model
@@ -199,12 +206,17 @@ criterion = None
 
 ntokens = len(corpus.dictionary)  # 10000
 
-if args.wvec:
-    model = model.RNNModel(args.model, ntokens, args.emsize,  args.nhid, args.chunk_size, args.nlayers,
-                       args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, pre_emb=pre_emb, )
+if args.mode == 'GPT':
+    model = GPTRNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
+                        args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, args=args, )
 else:
-    model = model.GPTRNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
-                       args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, args=args)
+    if args.wvec:
+        model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
+                         args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied,
+                         pre_emb=pre_emb, )
+    else:
+        model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
+                         args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, )
 ###
 if args.resume:
     tools.print_log(args.save, 'Resuming model ...')
@@ -227,18 +239,39 @@ if not criterion:
         splits = [2800, 20000, 76000]
     tools.print_log(args.save, splits)
     criterion = SplitCrossEntropyLoss(args.emsize, splits=splits, verbose=False)
+    criterion_gpt = CrossEntropyLoss(ignore_index=-1)
+
 ###
 if args.cuda:
     model = model.cuda()
     criterion = criterion.cuda()
 ###
+
+param_optimizer = list(model.named_parameters())
+no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+optimizer_grouped_parameters = [
+    {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay) and 'transformer' in n],
+     'weight_decay': 0.01},
+    {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay) and 'transformer' in n],
+     'weight_decay': 0.0}
+]
+num_train_optimization_steps = len(train_data) * args.epochs // args.batch_size
+optimizer_gpt = OpenAIAdam(optimizer_grouped_parameters,
+                           lr=args.learning_rate,
+                           warmup=args.warmup_proportion,
+                           max_grad_norm=args.max_grad_norm,
+                           weight_decay=args.weight_decay,
+                           t_total=num_train_optimization_steps)
 params = list(model.parameters()) + list(criterion.parameters())
 total_params = sum(x.size()[0] * x.size()[1] if len(x.size()) > 1 else x.size()[0] for x in params if x.size())
+params = [p for n, p in param_optimizer if 'transformer' not in n]
+
 tools.print_log(args.save, args)
 tools.print_log(args.save, 'Model total parameters:{}'.format(total_params))
 tokenizer = OpenAIGPTTokenizer.from_pretrained('openai-gpt')
 with open('GPT_index.pkl', 'rb') as handle:
     gptdic = pickle.load(handle)
+
 
 ###############################################################################
 # Training code
@@ -254,9 +287,9 @@ def evaluate(data_source, batch_size=10):
         hidden = model.init_hidden(batch_size)
         for i in range(0, data_source.size(0) - 1, args.bptt):
             # data, targets = get_batch(data_source, i, args, evaluation=True)
-            data, targets, gpt_ids, fl_ids = get_batch_gpt(data_source, i, args, gptdic, tokenizer,)
+            data, targets, gpt_ids, fl_ids, tgt_gpt_id = get_batch_gpt(data_source, i, args, gptdic, tokenizer, )
             # output, hidden = model(data, hidden)
-            output, hidden = model(data, hidden, gpt_ids, fl_ids)
+            output, hidden, gpt_out = model(data, hidden, gpt_ids, fl_ids)
             total_loss += len(data) * criterion(model.decoder.weight, model.decoder.bias, output, targets).data
             hidden = repackage_hidden(hidden)
             torch.cuda.empty_cache()
@@ -282,20 +315,23 @@ def train():
         lr2 = optimizer.param_groups[0]['lr']
         optimizer.param_groups[0]['lr'] = lr2 * seq_len / args.bptt
         # model.train()
-        data, targets, gpt_ids, fl_ids = get_batch_gpt(train_data, i, args, gptdic, tokenizer, seq_len=seq_len)
+        data, targets, gpt_ids, fl_ids, tgt_gpt_id = get_batch_gpt(train_data, i, args, gptdic, tokenizer,
+                                                                   seq_len=seq_len)
         # data : SL * BS; target:(SL*BS); gpt_ids : BS * SL_GPT; fl_ids : BS * (2 * SL)
 
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
         hidden = repackage_hidden(hidden)
         optimizer.zero_grad()
+        optimizer_gpt.zero_grad()
 
-        output, hidden, rnn_hs, dropped_rnn_hs = model(data, hidden, gpt_ids, fl_ids, return_h=True)
+        output, hidden, rnn_hs, dropped_rnn_hs, gpt_out = model(data, hidden, gpt_ids, fl_ids, return_h=True)
         # output, hidden = model(data, hidden, return_h=False)
         # output: target_len * ES;
         raw_loss = criterion(model.decoder.weight, model.decoder.bias, output, targets)
+        gpt_loss = criterion_gpt(gpt_out, tgt_gpt_id)
 
-        loss = raw_loss
+        loss = args.lm_coef * raw_loss + gpt_loss
         # Activiation Regularization
         if args.alpha:
             loss = loss + sum(
@@ -313,6 +349,7 @@ def train():
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         if args.clip: torch.nn.utils.clip_grad_norm_(params, args.clip)
         optimizer.step()
+        optimizer_gpt.step()
 
         total_loss += raw_loss.data
         optimizer.param_groups[0]['lr'] = lr2
@@ -320,7 +357,7 @@ def train():
             cur_loss = total_loss.item() / args.log_interval
             elapsed = time.time() - start_time
             tools.print_log(args.save, '| epoch {:3d} | {:5d}/{:5d} batches | lr {:05.5f} | ms/batch {:5.2f} | '
-                  'loss {:5.2f} | ppl {:8.2f} | bpc {:8.3f}'.format(
+                                       'loss {:5.2f} | ppl {:8.2f} | bpc {:8.3f}'.format(
                 epoch, batch, len(train_data) // args.bptt, optimizer.param_groups[0]['lr'],
                               elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss), cur_loss / math.log(2)))
             total_loss = 0
@@ -366,7 +403,7 @@ try:
             torch.cuda.empty_cache()
             tools.print_log(args.save, '-' * 89)
             tools.print_log(args.save, '| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
-                  'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
+                                       'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
                 epoch, (time.time() - epoch_start_time), val_loss2, math.exp(val_loss2), val_loss2 / math.log(2)))
             tools.print_log(args.save, '-' * 89)
 
@@ -380,7 +417,7 @@ try:
 
             if epoch == args.finetuning:
                 tools.print_log(args.save, 'Switching to finetuning')
-                optimizer = torch.optim.ASGD(model.parameters(), lr=args.lr, t0=0, lambd=0., weight_decay=args.wdecay)
+                optimizer = torch.optim.ASGD(params, lr=args.lr, t0=0, lambd=0., weight_decay=args.wdecay)
                 best_val_loss = []
 
             if epoch > args.finetuning and len(best_val_loss) > args.nonmono and val_loss2 > min(
@@ -392,9 +429,9 @@ try:
 
         else:
             val_loss = evaluate(val_data, eval_batch_size)
-            tools.print_log(args.save , '-' * 89)
+            tools.print_log(args.save, '-' * 89)
             tools.print_log(args.save, '| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
-                  'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
+                                       'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
                 epoch, (time.time() - epoch_start_time), val_loss, math.exp(val_loss), val_loss / math.log(2)))
             tools.print_log(args.save, '-' * 89)
 
@@ -413,7 +450,7 @@ try:
 
             if epoch in args.when:
                 tools.print_log(args.save, 'Saving model before learning rate decreased')
-                model_save('{}.e{}'.format(args.save+'.pt', epoch))
+                model_save('{}.e{}'.format(args.save + '.pt', epoch))
                 tools.print_log(args.save, 'Dividing learning rate by 10')
                 optimizer.param_groups[0]['lr'] /= 10.
 
@@ -428,7 +465,7 @@ except KeyboardInterrupt:
 
 try:
     # Load the best saved model.
-    model_load(args.save+'.pt')
+    model_load(args.save + '.pt')
 
     # Run on test data.
     test_loss = evaluate(test_data, test_batch_size)

@@ -39,6 +39,8 @@ def get_batch_gpt(source, i, args, gptdic, tokenizer, seq_len=None):
     seq_len = min(seq_len if seq_len else args.bptt, len(source) - 1 - i)
     data = source[i:i+seq_len]
     target = source[i+1:i+1+seq_len].view(-1)
+    target_gpt = [(gptdic[ele]) for ele in target_gpt[i].cpu().numpy()]
+    target_gpt_id = tokenizer.convert_tokens_to_ids(target_gpt)
     input = data.t()
     # tokenizer = OpenAIGPTTokenizer.from_pretrained('openai-gpt')
     gpt_tokens = []
@@ -56,7 +58,7 @@ def get_batch_gpt(source, i, args, gptdic, tokenizer, seq_len=None):
         fl_ids.append(fl_id)
         max_len = max(max_len, len(gpt_token))
     fl_ids = torch.LongTensor(fl_ids)
-    gpt_ids = np.zeros((input.size(0), max_len))
+    gpt_ids = np.zeros((input.size(0), max_len)).fill_(-1)
     for r in range(len(gpt_ids)):
         gpt_id = tokenizer.convert_tokens_to_ids(gpt_tokens[r])
         gpt_ids[r][:len(gpt_id)] = gpt_id
@@ -66,7 +68,7 @@ def get_batch_gpt(source, i, args, gptdic, tokenizer, seq_len=None):
     if args.cuda:
         gpt_ids = gpt_ids.cuda()
         fl_ids = fl_ids.cuda()
-    return data, target, gpt_ids, fl_ids
+    return data, target, gpt_ids, fl_ids, target_gpt_id
 
 
 def load_embeddings_txt(path):
