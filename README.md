@@ -16,8 +16,8 @@ GPT_model
 main_gpt  
   
 TODO:  
+Resume setting
 Check accuracy   
 Inprove efficiency  
-Weighted loss  
 Experiments design  
 
