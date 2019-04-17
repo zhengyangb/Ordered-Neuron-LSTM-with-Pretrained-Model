@@ -84,8 +84,9 @@ class GPTRNNModel(nn.Module):
         self.encoder = embedded_dropout_gpt(self.encoder,
             dropout=self.dropoute if self.training else 0
         )
-        emb = self.encoder(emb)
+        emb = nn.functional.relu(self.encoder(emb))
         emb = self.lockdrop(emb, self.dropouti)
+
         raw_output, hidden, raw_outputs, outputs, self.distance = self.rnn(emb, hidden)
 
         output = self.lockdrop(raw_output, self.dropout)
