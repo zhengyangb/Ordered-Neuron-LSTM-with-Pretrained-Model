@@ -230,7 +230,7 @@ def test(model, corpus, cuda, prt=False):
     if prt:
         tools.print_log(args.save, '-' * 80)
         np.set_printoptions(precision=1)
-        tools.print_log(args.save, 'Mean Prec:{}, Mean Reca:{}, Mean F1:{:.1f}, Std F1:{:.1f}'.format(100 * prec_list.mean(axis=0), 100 * reca_list.mean(axis=0), 100 * f1_list.mean(axis=0), np.std(f1_list, axis=0)))
+        tools.print_log(args.save, 'Mean Prec:{}, Mean Reca:{}, Mean F1:{}, Std F1:{}'.format(100 * prec_list.mean(axis=0), 100 * reca_list.mean(axis=0), 100 * f1_list.mean(axis=0), np.std(f1_list, axis=0)))
         tools.print_log(args.save, 'Number of sentence: %i' % nsens)
 
         correct, total = corpus_stats_labeled(corpus_sys, corpus_ref)
