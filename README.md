@@ -1,7 +1,7 @@
 # Dev Branch
 # NLU2019  
 April 15   
-run with `--cuda --mode GPT --learning_rate 1e-5 --lr 10 --batch_size 16 --dropoute 0.0 --dropout 0.45 --dropouth 0.3 --dropouti 0.0 --wdrop 0.45 --chunk_size 10 --seed 141 --epoch 15`  
+run with `--cuda --mode GPT --learning_rate 1e-6 --lr 10 --batch_size 20 --dropoute 0.0 --dropout 0.45 --dropouth 0.3 --dropouti 0.0 --wdrop 0.45 --chunk_size 10 --seed 141 --epoch 1000`  
 - Distinguish GPT optimizer 
 - Return GPT LM result
 - Weighted loss
