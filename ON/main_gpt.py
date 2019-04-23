@@ -268,10 +268,10 @@ if args.cuda:
     criterion = criterion.cuda()
 ###
 params = list(filter(lambda x: x.requires_grad, model.parameters())) + list(criterion.parameters())
-total_params = sum(x.size()[0] * x.size()[1] if len(x.size()) > 1 else x.size()[0] for x in params if x.size())
+total_params = sum(p.data.nelement() for p in params if p.requires_grad)
 if args.mode == 'GPT':
     param_optimizer = list(model.named_parameters())
-    no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+    no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight', 'ln_'] # Add 'ln_1' to test if it's better
     optimizer_grouped_parameters = [
         {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay) and 'transformer' in n],
          'weight_decay': 0.01},
