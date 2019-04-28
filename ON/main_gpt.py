@@ -144,15 +144,15 @@ def model_save(fn):
     if args.philly:
         fn = os.path.join(os.environ['PT_OUTPUT_DIR'], fn)
     with open(fn, 'wb') as f:
-        torch.save([model, criterion, optimizer], f)
+        torch.save([model, criterion, optimizer, epoch], f)
 
 
 def model_load(fn):
-    global model, criterion, optimizer
+    global model, criterion, optimizer, start_epoch
     if args.philly:
         fn = os.path.join(os.environ['PT_OUTPUT_DIR'], fn)
     with open(fn, 'rb') as f:
-        model, criterion, optimizer = torch.load(f)
+        model, criterion, optimizer, start_epoch = torch.load(f)
 
 
 if args.wvec:
@@ -424,7 +424,9 @@ try:
         if args.optimizer == 'adam':
             optimizer = torch.optim.Adam(params, lr=args.lr, betas=(0, 0.999), eps=1e-9, weight_decay=args.wdecay)
             scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', 0.5, patience=2, threshold=0)
-    for epoch in range(1, args.epochs + 1):
+    if not start_epoch:
+        start_epoch = 1
+    for epoch in range(start_epoch, args.epochs + 1):
         epoch_start_time = time.time()
         train()
         torch.cuda.empty_cache()
