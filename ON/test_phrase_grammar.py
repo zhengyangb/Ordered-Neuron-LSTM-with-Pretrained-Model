@@ -230,20 +230,32 @@ def test(model, corpus, cuda, prt=False):
     if prt:
         tools.print_log(args.save, '-' * 80)
         np.set_printoptions(precision=1)
-        tools.print_log(args.save, 'Mean Prec:{}, Mean Reca:{}, Mean F1:{}, Std F1:{}'.format(100 * prec_list.mean(axis=0), 100 * reca_list.mean(axis=0), 100 * f1_list.mean(axis=0), np.std(f1_list, axis=0)))
+        tools.print_log(args.save,
+                        'Mean Prec:{:.1f}, Mean Reca:{:.1f}, Mean F1:{:.1f}'.format(100.0 * prec_list.mean(axis=0)[0],
+                                                                                    100.0 * reca_list.mean(axis=0)[0],
+                                                                                    100.0 * f1_list.mean(axis=0)[0]))
         tools.print_log(args.save, 'Number of sentence: %i' % nsens)
 
         correct, total = corpus_stats_labeled(corpus_sys, corpus_ref)
         tools.print_log(args.save, correct)
         tools.print_log(args.save, total)
-        tools.print_log(args.save, 'ADJP:{}, {}, {}'.format(correct['ADJP'], total['ADJP'], 100 * correct['ADJP'] / total['ADJP']))
-        tools.print_log(args.save, 'NP::{}, {}, {}'.format(correct['NP'], total['NP'], 100 * correct['NP'] / total['NP']))
-        tools.print_log(args.save, 'PP::{}, {}, {}'.format(correct['PP'], total['PP'], 100 * correct['PP'] / total['PP']))
-        tools.print_log(args.save, 'INTJ::{}, {}, {}'.format(correct['INTJ'], total['INTJ'], 100 * correct['INTJ'] / total['INTJ']))
-        tools.print_log(args.save, 'Averaged Depth {}'.format(corpus_average_depth(corpus_sys)))
-
+        tools.print_log(args.save, 'ADJP:{}, {}, {:.1f}'.format(correct['ADJP'], total['ADJP'],
+                                                                100 * correct['ADJP'] / total['ADJP']))
+        tools.print_log(args.save,
+                        'NP::{}, {}, {:.1f}'.format(correct['NP'], total['NP'], 100 * correct['NP'] / total['NP']))
+        tools.print_log(args.save,
+                        'PP::{}, {}, {:.1f}'.format(correct['PP'], total['PP'], 100 * correct['PP'] / total['PP']))
+        tools.print_log(args.save, 'INTJ::{}, {}, {:.1f}'.format(correct['INTJ'], total['INTJ'],
+                                                                 100 * correct['INTJ'] / total['INTJ']))
+        tools.print_log(args.save, 'Averaged Depth {:.1f}'.format(corpus_average_depth(corpus_sys)))
         evalb(pred_tree_list, targ_tree_list)
-
+        tools.print_log(args.save,
+                        '{:.1f},' ',{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}'.format(100 * prec_list.mean(axis=0)[0],
+                                                                               corpus_average_depth(corpus_sys),
+                                                                               100 * correct['ADJP'] / total['ADJP'],
+                                                                               100 * correct['NP'] / total['NP'],
+                                                                               100 * correct['PP'] / total['PP'],
+                                                                               100 * correct['INTJ'] / total['INTJ']))
     return f1_list.mean(axis=0)
 
 
