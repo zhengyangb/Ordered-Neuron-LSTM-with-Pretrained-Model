@@ -198,9 +198,9 @@ val_data = batchify(corpus.valid, eval_batch_size, args)  # 7376 * 10  / 70390
 test_data = batchify(corpus.test, test_batch_size, args)  # 82430 * 1 / 78669 (tot tokens) + 3761 ('eos')
 
 if args.debug:
-    train_data = train_data[:500]
-    val_data = val_data[:500]
-    test_data = test_data[:500]
+    train_data = train_data[:50]
+    val_data = val_data[:50]
+    test_data = test_data[:50]
 
 ###############################################################################
 # Build the model
@@ -416,13 +416,14 @@ stored_loss = 100000000
 
 # At any point you can hit Ctrl + C to break out of training early.
 try:
-    optimizer = None
-    # Ensure the optimizer is optimizing params, which includes both the model's weights as well as the criterion's weight (i.e. Adaptive Softmax)
-    if args.optimizer == 'sgd':
-        optimizer = torch.optim.SGD(params, lr=args.lr, weight_decay=args.wdecay)
-    if args.optimizer == 'adam':
-        optimizer = torch.optim.Adam(params, lr=args.lr, betas=(0, 0.999), eps=1e-9, weight_decay=args.wdecay)
-        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', 0.5, patience=2, threshold=0)
+    if not optimizer:
+        optimizer = None
+        # Ensure the optimizer is optimizing params, which includes both the model's weights as well as the criterion's weight (i.e. Adaptive Softmax)
+        if args.optimizer == 'sgd':
+            optimizer = torch.optim.SGD(params, lr=args.lr, weight_decay=args.wdecay)
+        if args.optimizer == 'adam':
+            optimizer = torch.optim.Adam(params, lr=args.lr, betas=(0, 0.999), eps=1e-9, weight_decay=args.wdecay)
+            scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', 0.5, patience=2, threshold=0)
     for epoch in range(1, args.epochs + 1):
         epoch_start_time = time.time()
         train()
