@@ -416,7 +416,7 @@ stored_loss = 100000000
 
 # At any point you can hit Ctrl + C to break out of training early.
 try:
-    if not optimizer:
+    if not args.resume:
         optimizer = None
         # Ensure the optimizer is optimizing params, which includes both the model's weights as well as the criterion's weight (i.e. Adaptive Softmax)
         if args.optimizer == 'sgd':
@@ -424,7 +424,6 @@ try:
         if args.optimizer == 'adam':
             optimizer = torch.optim.Adam(params, lr=args.lr, betas=(0, 0.999), eps=1e-9, weight_decay=args.wdecay)
             scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', 0.5, patience=2, threshold=0)
-    if not start_epoch:
         start_epoch = 1
     for epoch in range(start_epoch, args.epochs + 1):
         epoch_start_time = time.time()
