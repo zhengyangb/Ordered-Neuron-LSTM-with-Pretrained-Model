@@ -2,7 +2,19 @@
 *.data
 *.pt
 .idea/
-OrderedNeurons/save/
+*.out
+save/
+res/
+data/ptb/
+data/wordvec/
+figure/
+
+ON/save/
+ON/res/
+ON/data/ptb/
+ON/data/wordvec/
+ON/figure/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
