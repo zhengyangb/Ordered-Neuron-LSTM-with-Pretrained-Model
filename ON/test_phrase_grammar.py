@@ -1,6 +1,8 @@
 import argparse
 import re
 import os
+import pickle
+import itertools
 
 import matplotlib
 matplotlib.use('Agg')
@@ -13,23 +15,28 @@ from torch.autograd import Variable
 
 import data
 import data_ptb
-from utils import batchify, get_batch, repackage_hidden, evalb
+from utils import batchify, get_batch, get_batch_gpt, repackage_hidden, evalb
 
 from parse_comparison import corpus_stats_labeled, corpus_average_depth
 from data_ptb import word_tags
 import tools
+from pytorch_pretrained_bert import OpenAIGPTTokenizer
 
 criterion = nn.CrossEntropyLoss()
 
-def evaluate(data_source, batch_size=1):
+def evaluate(data_source, batch_size=1, mode=None):
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_loss = 0
     ntokens = len(corpus.dictionary)
     hidden = model.init_hidden(batch_size)
     for i in range(0, data_source.size(0) - 1, args.bptt):
-        data, targets = get_batch(data_source, i, args, evaluation=True)
-        output, hidden = model(data, hidden)
+        if mode == 'GPT':
+            data, targets, gpt_ids, fl_ids, tgt_gpt_id = get_batch_gpt(data_source, i, args, gptdic, tokenizer, )
+            output, hidden = model(data, hidden, gpt_ids, fl_ids)
+        else:
+            data, targets = get_batch(data_source, i, args)
+            output, hidden = model(data, hidden)
         output = model.decoder(output)
         output_flat = output.view(-1, ntokens)
         total_loss += len(data) * criterion(output_flat, targets).data
@@ -124,7 +131,7 @@ def mean(x):
     return sum(x) / len(x)
 
 
-def test(model, corpus, cuda, prt=False):
+def test(model, corpus, cuda, mode, prt=False):
     model.eval()
 
     prec_list = []
@@ -152,7 +159,30 @@ def test(model, corpus, cuda, prt=False):
             input = input.cuda()
 
         hidden = model.init_hidden(1)
-        _, hidden = model(input, hidden)
+        if mode == 'GPT':
+            tokenizer = OpenAIGPTTokenizer.from_pretrained('openai-gpt')
+            with open('GPT_index.pkl', 'rb') as handle:
+                gptdic = pickle.load(handle)
+            fl_id = []
+            cnt = 0
+            input_gpt = input.t()
+            gpt_token = [(gptdic[ele]) for ele in input_gpt.numpy()[0]]
+            for r in range(len(gpt_token)):
+                fl_id.extend([cnt, cnt + len(gpt_token[r]) - 1])
+                cnt = fl_id[-1] + 1
+            gpt_token = list(itertools.chain(*gpt_token))
+            gpt_id = tokenizer.convert_tokens_to_ids(gpt_token)
+            fl_id = torch.LongTensor(fl_id).unsqueeze(0)
+            gpt_id = torch.LongTensor(gpt_id).unsqueeze(0)
+            if cuda:
+                gpt_id = gpt_id.cuda()
+                fl_id = fl_id.cuda()
+                input = input.cuda()
+            _, hidden = model(input, hidden, gpt_id, fl_id)
+        else:
+            if cuda:
+                input = input.cuda()
+            _, hidden = model(input, hidden)
 
         distance = model.distance[0].squeeze().data.cpu().numpy()
         distance_in = model.distance[1].squeeze().data.cpu().numpy()
@@ -282,6 +312,8 @@ if __name__ == '__main__':
                         help='use CUDA')
     parser.add_argument('--wsj10', action='store_true',
                         help='use WSJ10')
+    parser.add_argument('--mode', type=str, default='',
+                        help='whether to use GPT pre-trained model')
     parser.add_argument('--wvec', type=str, default='',
                         help='load pretrained word vector')
     args = parser.parse_args()
