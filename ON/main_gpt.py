@@ -143,16 +143,24 @@ if torch.cuda.is_available():
 def model_save(fn):
     if args.philly:
         fn = os.path.join(os.environ['PT_OUTPUT_DIR'], fn)
-    with open(fn, 'wb') as f:
-        torch.save([model, criterion, optimizer, epoch], f)
+    if args.mode == 'GPT':
+        with open(fn, 'wb') as f:
+            torch.save([model, criterion, optimizer, epoch, criterion_gpt, optimizer_gpt], f)
+    else:
+        with open(fn, 'wb') as f:
+            torch.save([model, criterion, optimizer, epoch], f)
 
 
 def model_load(fn):
     global model, criterion, optimizer, start_epoch
     if args.philly:
         fn = os.path.join(os.environ['PT_OUTPUT_DIR'], fn)
-    with open(fn, 'rb') as f:
-        model, criterion, optimizer, start_epoch = torch.load(f)
+    if args.mode == 'GPT':
+        with open(fn, 'rb') as f:
+            model, criterion, optimizer, start_epoch,  criterion_gpt, optimizer_gpt = torch.load(f)
+    else:
+        with open(fn, 'rb') as f:
+            model, criterion, optimizer, start_epoch = torch.load(f)
 
 
 if args.wvec:
