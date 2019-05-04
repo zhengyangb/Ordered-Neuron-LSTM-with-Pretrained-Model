@@ -37,6 +37,8 @@ parser.add_argument('--wvec', type=str, default='',
                     help='load pretrained word vector')
 parser.add_argument('--maxvocab', type=int, default=50000,
                     help='maximum word vector to load')
+parser.add_argument('--fixemb', default=False, action='store_true',
+                    help='freeze pretrained word emb')
 parser.add_argument('-n', '--name', default=tools.date_hash(),
                     help='checkpoint file name')
 parser.add_argument('--output', metavar='SAVE DIR',
@@ -157,7 +159,7 @@ def model_load(fn):
         fn = os.path.join(os.environ['PT_OUTPUT_DIR'], fn)
     if args.mode == 'GPT':
         with open(fn, 'rb') as f:
-            model, criterion, optimizer, start_epoch,  criterion_gpt, optimizer_gpt = torch.load(f)
+            model, criterion, optimizer, start_epoch, criterion_gpt, optimizer_gpt = torch.load(f)
     else:
         with open(fn, 'rb') as f:
             model, criterion, optimizer, start_epoch = torch.load(f)
@@ -227,10 +229,10 @@ else:
     if args.wvec:
         model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
                          args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied,
-                         pre_emb=pre_emb, )
+                         pre_emb=pre_emb, fixemb=args.fixemb, )
     else:
         model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
-                         args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, )
+                         args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, fixemb=args.fixemb,)
 
 if 'fixLastBlock' in args.feature.split('_'):
     # pdb.set_trace()

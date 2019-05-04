@@ -5,12 +5,13 @@ from embed_regularize import embedded_dropout
 from locked_dropout import LockedDropout
 from weight_drop import WeightDrop
 from ON_LSTM import ONLSTMStack
+import numpy as np
 
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
     def __init__(self, rnn_type, ntoken, ninp, nhid, chunk_size, nlayers,  dropout=0.5, dropouth=0.5, dropouti=0.5,
-                 dropoute=0.1, wdrop=0, tie_weights=False, pre_emb=None,):
+                 dropoute=0.1, wdrop=0, tie_weights=False, pre_emb=None, fixemb=False):
         super(RNNModel, self).__init__()
         self.lockdrop = LockedDropout()
         self.idrop = nn.Dropout(dropouti)
@@ -49,6 +50,7 @@ class RNNModel(nn.Module):
         self.dropouth = dropouth
         self.dropoute = dropoute
         self.tie_weights = tie_weights
+        self.fixemb = fixemb
 
     def reset(self):
         if self.rnn_type == 'QRNN': [r.reset() for r in self.rnns]
@@ -65,7 +67,7 @@ class RNNModel(nn.Module):
     def forward(self, input, hidden, return_h=False):
         emb = embedded_dropout(
             self.encoder, input,
-            dropout=self.dropoute if self.training else 0
+            dropout=self.dropoute if self.training else 0, fixemb=self.fixemb,
         )
 
         emb = self.lockdrop(emb, self.dropouti)

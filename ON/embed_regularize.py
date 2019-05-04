@@ -3,7 +3,7 @@ import numpy as np
 import torch
 
 
-def embedded_dropout(embed, words, dropout=0.1, scale=None):
+def embedded_dropout(embed, words, dropout=0.1, scale=None, fixemb=None):
   if dropout:
     mask = embed.weight.data.new().resize_((embed.weight.size(0), 1)).bernoulli_(1 - dropout).expand_as(embed.weight) / (1 - dropout)
     masked_embed_weight = mask * embed.weight
@@ -20,6 +20,14 @@ def embedded_dropout(embed, words, dropout=0.1, scale=None):
     padding_idx, embed.max_norm, embed.norm_type,
     embed.scale_grad_by_freq, embed.sparse
   )
+  if fixemb:
+    m = np.zeros(shape=(1, 1, 400))
+    m = torch.FloatTensor(m)
+    m[:, :, 300:] = 1
+    m[:,:, [0,2]] = 1
+    if X.is_cuda:
+      m = m.cuda()
+    X = m * X + (1 - m) * X.clone().detach()
   return X
 
 def embedded_dropout_gpt(embed, dropout=0.1, scale=None):
