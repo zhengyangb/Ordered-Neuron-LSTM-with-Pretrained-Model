@@ -17,7 +17,10 @@ class RNNModel(nn.Module):
         self.idrop = nn.Dropout(dropouti)
         self.hdrop = nn.Dropout(dropouth)
         self.drop = nn.Dropout(dropout)
-        self.encoder = nn.Embedding(ntoken, ninp)
+        if pre_emb is not None:
+            self.encoder = nn.Embedding(ntoken, ninp, padding_idx=1)
+        else:
+            self.encoder = nn.Embedding(ntoken, ninp)
 
         assert rnn_type in ['LSTM'], 'RNN type is not supported'
         self.rnn = ONLSTMStack(

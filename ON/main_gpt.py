@@ -232,7 +232,7 @@ else:
                          pre_emb=pre_emb, fixemb=args.fixemb, )
     else:
         model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.chunk_size, args.nlayers,
-                         args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, fixemb=args.fixemb,)
+                         args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied, )
 
 if 'fixLastBlock' in args.feature.split('_'):
     # pdb.set_trace()
