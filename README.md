@@ -2,7 +2,7 @@
 
 # Ordered Neuron LSTM with Pretrained Model
 
-[![GitHub contributors](https://img.shields.io/github/contributors/Naereen/StrapDown.js.svg)](https://github.com/zhengyangb/NLU2019/graphs/contributors/)
+[![GitHub contributors](https://img.shields.io/github/contributors/zhengyangb/NLU2019.svg)](https://github.com/zhengyangb/NLU2019/graphs/contributors/)
 
 Syntactic parsing, the task of learning grammar structure, acts as the backbone of naturallanguage understanding and has been shown to benefit many downstream natural language processing tasks.  Toward  this  pursuit,  we  introduce two different word representations to ON-LSTM model and evaluate their grammar induction performances.
 
@@ -32,8 +32,6 @@ To run the evaluation script, you will also need Penn Treebank database.
    ```
    python test_phrase_grammar.py --cuda
    ```
-
-## More Details
 
 ## References
 
