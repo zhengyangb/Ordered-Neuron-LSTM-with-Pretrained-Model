@@ -1,14 +1,57 @@
-# NLU2019 Code  
+# <small> DS-GA 1012 Course Project </small>
 
-The model we propose in the paper uses ON-LSTM and OpenAI GPT models. Instead of replicate from scratch, we use the code from the  following repositories. 
+# Ordered Neuron LSTM with Pretrained Model
 
-- [OpenAI GPT](https://github.com/huggingface/pytorch-pretrained-BERT)
-- [ON-LSTM](https://github.com/yikangshen/Ordered-Neurons)
+[![GitHub contributors](https://img.shields.io/github/contributors/Naereen/StrapDown.js.svg)](https://github.com/zhengyangb/NLU2019/graphs/contributors/)
+
+Syntactic parsing, the task of learning grammar structure, acts as the backbone of naturallanguage understanding and has been shown to benefit many downstream natural language processing tasks.  Toward  this  pursuit,  we  introduce two different word representations to ON-LSTM model and evaluate their grammar induction performances.
+
+## Requirements
+
+To run the code, you will need an environment with the following:
+
+- Python (>3.6)
+- PyTorch
+- CUDA (strongly recommended)
+- NLTK
+
+To run the evaluation script, you will also need Penn Treebank database. 
+
+## Quick Start
+
+1. Please make sure you have the install NLTK PTB package and have the PTB corpus in the directory. For more details, please refer to [ON-LSTM repo](https://github.com/yikangshen/Ordered-Neurons) and find instructions. 
+
+2. To run the language modeling training, use the following command
+
+   ```
+   python main_gpt.py --cuda --mode GPT --learning_rate 1e-6 --lr 10 --batch_size 20 --dropoute 0.0 --dropout 0.45 --dropouth 0.3 --dropouti 0.0 --wdrop 0.45 --chunk_size 10 --seed 141 --epoch 1000
+   ```
+
+3. To test the model on the unsupervised parsing task, please use 
+
+   ```
+   python test_phrase_grammar.py --cuda
+   ```
+
+## More Details
+
+## References
+
+- Shen, Yikang, et al. "Ordered Neurons: Integrating Tree Structures into Recurrent Neural Networks." *Proceedings of ICLR* (2019).
+- Code for the paper "Ordered Neurons: Integrating Tree Structures into Recurrent Neural Networks" https://github.com/yikangshen/Ordered-Neurons
+- The Big-&-Extending-Repository-of-Transformers: Pretrained PyTorch models for Google's BERT, OpenAI GPT & GPT-2, Google/CMU Transformer-XL. https://github.com/huggingface/pytorch-pretrained-BERT
+
+
+
+
+
+
 
 
 
 <!--
 run with `--cuda --mode GPT --learning_rate 1e-6 --lr 10 --batch_size 20 --dropoute 0.0 --dropout 0.45 --dropouth 0.3 --dropouti 0.0 --wdrop 0.45 --chunk_size 10 --seed 141 --epoch 1000`  
+
 - Distinguish GPT optimizer 
 - Return GPT LM result
 - Weighted loss
@@ -21,7 +64,7 @@ tools/id2gptid
 util.get_batch_gpt  
 GPT_model  
 main_gpt  
-  
+
 TODO:  
 Resume setting
 Check accuracy   
@@ -63,11 +106,12 @@ and for parsing we need [Penn Treebank Parsed](https://catalog.ldc.upenn.edu/LDC
 3. Scripts and commands
 
   	+  Train Language Modeling
-  	```python -u main.py --cuda --batch_size 20 --dropout 0.45 --dropouth 0.3 --dropouti 0.5 --wdrop 0.45 --chunk_size 10 --seed 141 --epoch 1000 --data data/penn```
-  	
+   	 	```python -u main.py --cuda --batch_size 20 --dropout 0.45 --dropouth 0.3 --dropouti 0.5 --wdrop 0.45 --chunk_size 10 --seed 141 --epoch 1000 --data data/penn```
+
   	    + Remove the cuda flag if to run without cuda
 
   	+ Test Unsupervised Parsing
+
     ```python test_phrase_grammar.py --cuda```
     
     The default setting in `main.py` achieves a perplexity of approximately `56.17` on PTB test set 
