@@ -1,4 +1,4 @@
-# <small> DS-GA 1012 Course Project </small>
+### <small> DS-GA 1012 Course Project </small>
 
 # Ordered Neuron LSTM with Pretrained Model
 
@@ -12,7 +12,7 @@ To run the code, you will need an environment with the following:
 
 - Python (>3.6)
 - PyTorch
-- CUDA (strongly recommended)
+- CUDA (strongly recommended)
 - NLTK
 
 To run the evaluation script, you will also need Penn Treebank database. 
